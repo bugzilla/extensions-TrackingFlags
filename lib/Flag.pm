@@ -12,8 +12,10 @@ use base qw(Bugzilla::Object);
 use strict;
 use warnings;
 
-use Bugzilla::Constants;
-use Bugzilla::Util qw(trim);
+use Bugzilla::Error;
+use Bugzilla::Extension::TrackingFlags::Flag::Value;
+use Bugzilla::Extension::TrackingFlags::Flag::Visibility;
+use Bugzilla::Util qw(detaint_natural);
 
 ###############################
 ####    Initialization     ####
@@ -30,11 +32,6 @@ use constant DB_COLUMNS => qw(
 );
 
 use constant LIST_ORDER => 'sortkey';
-
-use constant REQUIRED_CREATE_FIELDS => qw(
-    name 
-    description
-);
 
 use constant UPDATE_COLUMNS => qw(
     name 
@@ -59,44 +56,27 @@ use constant UPDATE_VALIDATORS => {
 };
 
 ###############################
-####      Methods          ####
-###############################
-
-sub remove_from_db {
-    my $self = shift;
-    my $dbh = Bugzilla->dbh;
-    $dbh->bz_start_transaction();
-    $dbh->do('DELETE FROM tracking_flags WHERE id = ?', undef, $self->id);
-    $dbh->bz_commit_transaction();
-}
-
-###############################
 ####      Validators       ####
 ###############################
 
 sub _check_name {
     my ($invocant, $name) = @_;
-    $name = trim($name);
     $name || ThrowCodeError('param_required', { param => 'name' });
     return $name;
 }
 
 sub _check_description {
     my ($invocant, $description) = @_;
-    $description = trim($description);
     $description || ThrowCodeError( 'param_required', { param => 'description' } );
     return $description;
 }
 
 sub _check_sortkey {
     my ($invocant, $sortkey) = @_;
-    my $skey = trim($sortkey);
     detaint_natural($sortkey)
-        || ThrowUserError('field_invalid_sortkey', { sortkey => $skey });
+        || ThrowUserError('field_invalid_sortkey', { sortkey => $sortkey });
     return $sortkey;
 }
-
-sub _check_is_active { return $_[1] ? 1 : 0; }
 
 ###############################
 ####       Setters         ####
@@ -111,7 +91,6 @@ sub set_is_active   { $_[0]->set('is_active', $_[1]);   }
 ####      Accessors        ####
 ###############################
 
-sub id          { return $_[0]->{'id'};          }
 sub name        { return $_[0]->{'name'};        }
 sub description { return $_[0]->{'description'}; }
 sub sortkey     { return $_[0]->{'sortkey'};     }
@@ -119,11 +98,18 @@ sub is_active   { return $_[0]->{'is_active'};   }
 
 sub values {
     my ($self) = @_;
-    return $self->{'values'} if exists $self->{'values'};
-    $self->{'values'} = Bugzilla::Extension::TrackingFlags::Flag::Value->match({ 
+    $self->{'values'} ||= Bugzilla::Extension::TrackingFlags::Flag::Value->match({ 
         tracking_flag_id => $self->id
     });
     return $self->{'values'};
+}
+
+sub visibility {
+    my ($self) = @_;
+    $self->{'visibility'} ||= Bugzilla::Extension::TrackingFlags::Flag::Visibility->match({
+        tracking_flag_id => $self->id
+    });
+    return $self->{'visibility'};
 }
 
 1;

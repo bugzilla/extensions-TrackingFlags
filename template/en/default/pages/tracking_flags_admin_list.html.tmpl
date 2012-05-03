@@ -1,0 +1,45 @@
+[%# This Source Code Form is subject to the terms of the Mozilla Public
+  # License, v. 2.0. If a copy of the MPL was not distributed with this
+  # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+  #
+  # This Source Code Form is "Incompatible With Secondary Licenses", as
+  # defined by the Mozilla Public License, v. 2.0.
+  #%]
+
+[% PROCESS global/header.html.tmpl
+  title = "Relase Tracking Flags"
+  javascript_urls = [ 'extensions/TrackingFlags/web/admin.js' ]
+  style_urls = [ 'extensions/TrackingFlags/web/admin.css' ]
+%]
+
+<div id="new_flag">
+  [ <a href="page.cgi?id=tracking_flags_admin_edit.html">New Flag</a> ]
+</div>
+
+<table class="list" cellspacing="0">
+
+<tr>
+  <th>Name</th>
+  <th>Description</th>
+  <th>Active</th>
+  <th>&nbsp;</th>
+</tr>
+
+[% FOREACH flag = flags %]
+  <tr class="[% loop.count % 2 == 1 ? "report_row_odd" : "report_row_even" %]
+             [% "disabled" UNLESS flag.is_active %]">
+    <td>[% flag.name FILTER html %]</td>
+    <td>[% flag.description FILTER html %]</td>
+    <td>[% flag.is_active ? "Yes" : "No" %]</td>
+    <td>
+      [
+        <a href="page.cgi?id=tracking_flags_admin_edit.html&amp;edit=[% flag.id FILTER url_quote %]">Edit</a>
+        | <a href="page.cgi?id=tracking_flags_admin_edit.html&amp;copy=[% flag.id FILTER url_quote %]">Copy</a>
+      ]
+    </td>
+  </tr>
+[% END %]
+
+</table>
+
+[% INCLUDE global/footer.html.tmpl %]

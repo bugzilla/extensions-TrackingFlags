@@ -1,0 +1,123 @@
+[%# This Source Code Form is subject to the terms of the Mozilla Public
+  # License, v. 2.0. If a copy of the MPL was not distributed with this
+  # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+  #
+  # This Source Code Form is "Incompatible With Secondary Licenses", as
+  # defined by the Mozilla Public License, v. 2.0.
+  #%]
+
+[% PROCESS global/header.html.tmpl
+  title = "Release Tracking Flags"
+  javascript_urls = [ 'extensions/TrackingFlags/web/admin.js' ]
+  style_urls = [ 'extensions/TrackingFlags/web/admin.css' ]
+%]
+
+<div id="edit_mode">
+  [% IF mode == 'edit' %]
+    Editing [% flag.name FILTER html %]
+  [% ELSIF mode == 'copy' %]
+    New flag (from [% flag.name FILTER html %])
+  [% ELSE %]
+    New flag
+  [% END %]
+</div>
+
+[%# field %]
+
+<table class="edit" cellspacing="0">
+
+<tr class="header">
+  <th colspan="3">Field</th>
+</tr>
+
+<tr>
+  <th>Name</th>
+  <td><input name="flag_name" id="flag_name" value="[% flag.name FILTER html %]"></td>
+  <td class="help">database field name</td>
+</tr>
+
+<tr>
+  <th>Description</th>
+  <td><input name="flag_desc" id="flag_desc" value="[% flag.description FILTER html %]"></td>
+  <td class="help">visible name</td>
+</tr>
+
+<tr>
+  <th>Sort Key</th>
+  <td>
+    <input name="flag_sort" id="flag_sort" value="[% flag.sortkey FILTER html %]">
+    [
+      <a href="#" onclick="inc_field('flag_sort')">+</a>
+      | <a href="#" onclick="dec_field('flag_sort')">-</a>
+    ]
+  </td>
+</tr>
+
+<tr>
+  <th>Active</th>
+  <td><input type="checkbox" name="flag_active" id="flag_active" [% "checked" IF flag.is_active %]></td>
+</tr>
+
+</table>
+
+[%# values %]
+
+<table class="edit" cellspacing="0">
+
+<tr class="header">
+  <th colspan="4">Values</th>
+</tr>
+
+<tr>
+  <th>Value</th>
+  <th>Setter</th>
+  <th>Active</th>
+</tr>
+
+[% FOREACH value = flag.values %]
+  <tr>
+    <td>[% value.value FILTER html %]</td>
+    <td>[% value.setter_group.name FILTER html %]</td>
+    <td>[% value.is_active ? "Yes" : "No" %]</td>
+    <td>[ &uarr; | &darr; | Edit ]</td>
+  </tr>
+[% END %]
+
+<tr>
+  <td colspan="4">
+    [ New Value ]
+  </td>
+</tr>
+
+</table>
+
+[%# visibility %]
+
+<table class="edit" cellspacing="0">
+
+<tr class="header">
+  <th colspan="3">Visibility</th>
+</tr>
+
+<tr>
+  <th>Product</th>
+  <th>Component</th>
+</tr>
+
+[% FOREACH visible = flag.visibility %]
+  <tr>
+    <td>[% visible.product.name FILTER html %]</td>
+    <td>[% visible.component ? visibile.component.name : "-- Any --" FILTER html %]</td>
+    <td>[ Remove ]</td>
+  </tr>
+[% END %]
+
+<tr>
+  <td colspan="4">
+    [ New Value ]
+  </td>
+</tr>
+
+</table>
+
+[% INCLUDE global/footer.html.tmpl %]
