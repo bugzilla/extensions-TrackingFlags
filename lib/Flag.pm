@@ -13,6 +13,7 @@ use strict;
 use warnings;
 
 use Bugzilla::Error;
+use Bugzilla::Constants;
 use Bugzilla::Extension::TrackingFlags::Flag::Value;
 use Bugzilla::Extension::TrackingFlags::Flag::Visibility;
 use Bugzilla::Util qw(detaint_natural);
@@ -54,6 +55,53 @@ use constant UPDATE_VALIDATORS => {
     sortkey     => \&_check_sortkey,
     is_active   => \&Bugzilla::Object::check_boolean, 
 };
+
+
+###############################
+####      Methods          ####
+###############################
+
+sub create {
+    my $class = shift;
+    my ($params) = @_;
+    my $dbh = Bugzilla->dbh;
+
+    $dbh->bz_start_transaction();
+
+    my $flag = $class->SUPER::create(@_);
+
+    # We also have to create an entry for this new flag 
+    # in the fielddefs table for use elsewhere. We cannot
+    # use Bugzilla::Field->create as it will create the
+    # additional tables needed by custom fields which we
+    # do not need. Also we do this so as not to add a 
+    # another column to the bugs table.
+    # We will create the entry as a custom field with a 
+    # type of FIELD_TYPE_SINGLE_SELECT 
+    $dbh->do("INSERT INTO fielddefs 
+             (name, description, sortkey, type, custom, obsolete, buglist)
+              VALUES 
+             (?, ?, ?, ?, ?, ?, ?)", 
+             undef, 
+             $flag->name,
+             $flag->description,
+             $flag->sortkey,
+             FIELD_TYPE_SINGLE_SELECT, 
+             1, 1, 1);
+
+    $dbh->bz_commit_transaction();
+            
+    return $flag;
+}
+
+sub remove_from_db {
+    my $self = shift;
+    my $dbh = Bugzilla->dbh;
+    $dbh->bz_start_transaction();
+    $dbh->do('DELETE FROM fielddefs WHERE name = ?', undef, $self->name);
+    $self->SUPER::remove_from_db(@_);
+    $dbh->bz_commit_transaction();
+}
 
 ###############################
 ####      Validators       ####
@@ -110,6 +158,21 @@ sub visibility {
         tracking_flag_id => $self->id
     });
     return $self->{'visibility'};
+}
+
+sub allowable_values {
+    my ($self, $user) = @_;
+    $user ||= Bugzilla->user;
+    return $self->{'allowable_values'} if exists $self->{'allowable_values'};
+    $self->{'allowable_values'} = [];
+    foreach my $value (@{$self->{'values'}}) {
+        if (!$value->setter_group_id 
+            || $user->in_group($value->setter_group->name))
+        {
+            push(@{$self->{'allowable_values'}}, $value->name);
+        }
+    }
+    return $self->{'allowable_values'};
 }
 
 1;

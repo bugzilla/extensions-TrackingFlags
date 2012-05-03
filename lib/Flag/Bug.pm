@@ -64,7 +64,7 @@ sub _check_tracking_flag {
 ####       Setters         ####
 ###############################
 
-sub set_value        { $_[0]->set('value', $_[1]);           }
+sub set_value { $_[0]->set('value', $_[1]); }
 
 ###############################
 ####      Accessors        ####
@@ -78,6 +78,12 @@ sub bug {
     my ($self) = @_;
     $self->{'bug'} ||= Bugzilla::Bug->new($self->bug_id);
     return $self->{'bug'};
+}
+
+sub tracking_flag {
+    my ($self) = @_;
+    $self->{'tracking_flag'} ||= Bugzilla::Extension::TrackingFlags::Flag->new($self->tracking_flag_id);
+    return $self->{'tracking_flag'}
 }
 
 1;
