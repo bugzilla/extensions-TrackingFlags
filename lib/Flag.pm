@@ -110,6 +110,7 @@ sub remove_from_db {
 sub _check_name {
     my ($invocant, $name) = @_;
     $name || ThrowCodeError('param_required', { param => 'name' });
+    # XXX ensure name starts with cf_
     return $name;
 }
 

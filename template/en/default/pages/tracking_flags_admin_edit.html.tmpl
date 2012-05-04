@@ -6,11 +6,34 @@
   # defined by the Mozilla Public License, v. 2.0.
   #%]
 
+[% js_data = BLOCK %]
+var useclassification = false;
+var first_load = true;
+var last_sel = [];
+var cpts = new Array();
+[% n = 1 %]
+[% FOREACH p = user.get_selectable_products %]
+  cpts['[% n FILTER js %]'] = [
+    [%- FOREACH c = p.components %]'[% c.name FILTER js %]'[% ", " UNLESS loop.last %] [%- END -%] ];
+  [% n = n+1 %]
+[% END %]
+var selected_components = [
+  [%- FOREACH c = input.component %]'[% c FILTER js %]'
+  [%- ',' UNLESS loop.last %] [%- END ~%] ];
+[% END %]
+
 [% PROCESS global/header.html.tmpl
   title = "Release Tracking Flags"
-  javascript_urls = [ 'extensions/TrackingFlags/web/admin.js' ]
+  javascript = js_data
+  javascript_urls = [ 'extensions/TrackingFlags/web/admin.js', 'js/productform.js' ]
   style_urls = [ 'extensions/TrackingFlags/web/admin.css' ]
 %]
+
+<script>
+  var groups = [% groups || '[]' FILTER none %];
+  var flag_values = [% flag_values || '[]' FILTER none %];
+  var flag_visibility = [% flag_visibility || '[]' FILTER none %];
+</script>
 
 <div id="edit_mode">
   [% IF mode == 'edit' %]
@@ -47,8 +70,8 @@
   <td>
     <input name="flag_sort" id="flag_sort" value="[% flag.sortkey FILTER html %]">
     [
-      <a href="#" onclick="inc_field('flag_sort')">+</a>
-      | <a href="#" onclick="dec_field('flag_sort')">-</a>
+      <a class="txt_icon" href="#" onclick="inc_field('flag_sort', 5);return false">+5</a>
+      | <a class="txt_icon" href="#" onclick="inc_field('flag_sort', -5);return false">-5</a>
     ]
   </td>
 </tr>
@@ -62,7 +85,7 @@
 
 [%# values %]
 
-<table class="edit" cellspacing="0">
+<table id="flag_values" class="edit" cellspacing="0">
 
 <tr class="header">
   <th colspan="4">Values</th>
@@ -74,18 +97,9 @@
   <th>Active</th>
 </tr>
 
-[% FOREACH value = flag.values %]
-  <tr>
-    <td>[% value.value FILTER html %]</td>
-    <td>[% value.setter_group.name FILTER html %]</td>
-    <td>[% value.is_active ? "Yes" : "No" %]</td>
-    <td>[ &uarr; | &darr; | Edit ]</td>
-  </tr>
-[% END %]
-
 <tr>
   <td colspan="4">
-    [ New Value ]
+    [ <a href="#" onclick="add_value();return false">New Value</a> ]
   </td>
 </tr>
 
@@ -93,7 +107,7 @@
 
 [%# visibility %]
 
-<table class="edit" cellspacing="0">
+<table id="flag_visibility" class="edit" cellspacing="0">
 
 <tr class="header">
   <th colspan="3">Visibility</th>
@@ -104,20 +118,36 @@
   <th>Component</th>
 </tr>
 
-[% FOREACH visible = flag.visibility %]
-  <tr>
-    <td>[% visible.product.name FILTER html %]</td>
-    <td>[% visible.component ? visibile.component.name : "-- Any --" FILTER html %]</td>
-    <td>[ Remove ]</td>
-  </tr>
-[% END %]
-
-<tr>
-  <td colspan="4">
-    [ New Value ]
+<tr id="flag_visibility_add">
+  <td>
+    <select id="product" onChange="selectProduct(Dom.get('product'), Dom.get('component'), null, null, '-- Any --')">
+      <option value=""></option>
+      [% FOREACH p = user.get_selectable_products %]
+        <option value="[% p.name FILTER html %]"
+          [% " selected" IF input.product == p.name %]>
+          [% p.name FILTER html %]
+        </option>
+      [% END %]
+    </select>
   </td>
+  <td>
+    <select id="component">
+    </select>
+  </td>
+  <td>
+    [ <a href="#" onclick="add_visibility();return false">Add</a> ]
+  <td>
 </tr>
 
 </table>
+
+[%# submit %]
+
+<div>
+  <input type="submit" name="submit" id="submit" value="[% mode == 'edit' ? 'Update' : 'Create' %]"
+         onsubmit="return on_submit()">
+  <input type="submit" name="cancel" id="cancel" value="Cancel"
+         onclick="document.location.href = 'page.cgi?id=tracking_flags_admin_list.html'">
+</div>
 
 [% INCLUDE global/footer.html.tmpl %]

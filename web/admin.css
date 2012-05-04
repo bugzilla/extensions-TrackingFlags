@@ -5,6 +5,14 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as
  * defined by the Mozilla Public License, v. 2.0. */
 
+.hidden {
+    display: none;
+}
+
+.txt_icon {
+    font-family: monospace;
+}
+
 .list {
     border: 1px solid #888888;
 }
