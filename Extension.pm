@@ -11,10 +11,14 @@ use strict;
 
 use base qw(Bugzilla::Extension);
 
+use Bugzilla::Extension::TrackingFlags::Flag::Bug;
 use Bugzilla::Extension::TrackingFlags::Flag;
 use Bugzilla::Extension::TrackingFlags::Admin;
 
 use Bugzilla::Bug;
+use Bugzilla::Error;
+
+use Data::Dumper;
 
 our $VERSION = '1';
 
@@ -48,7 +52,7 @@ sub template_before_process {
 
     if ($file eq 'bug/create/create.html.tmpl') {
         $vars->{'new_tracking_flags'} = Bugzilla::Extension::TrackingFlags::Flag->match({
-            product   => $vars->{'product'},
+            product   => $vars->{'product'}->name,
             is_active => 1,
         });
     }
@@ -226,12 +230,12 @@ sub bug_end_of_create {
         component => $bug->component, 
         is_active => 1, 
     });
-    
+
     foreach my $flag (@$tracking_flags) {
         next if !$params->{$flag->name};
         next if $params->{$flag->name} eq '---';
         foreach my $value (@{$flag->values}) {
-            next if $value->name ne $params->{$flag->name};
+            next if $value->value ne $params->{$flag->name};
             if (!grep($_ eq $params->{$flag->name}, @{$flag->allowable_values})) {
                 ThrowUserError('tracking_flags_change_denied', 
                                { flag => $flag, value => $value });
@@ -239,7 +243,7 @@ sub bug_end_of_create {
             Bugzilla::Extension::TrackingFlags::Flag::Bug->create({
                 tracking_flag_id => $flag->id, 
                 bug_id           => $bug->id,
-                value            => $value->name, 
+                value            => $value->value, 
             });
         }
     }
@@ -258,13 +262,13 @@ sub bug_end_of_update {
 
     my (@added, @removed, @updated);
     foreach my $flag (@$bug_flags) {
-        next if !$params->{$flag->tracker_flag->name};
-        my $new_value = $params->{$flag->tracker_flag->name};
+        next if !$params->{$flag->tracking_flag->name};
+        my $new_value = $params->{$flag->tracking_flag->name};
         my $old_value = $flag->value;
         next if $new_value eq $old_value;
         if ($new_value ne $old_value && $new_value eq '---') {
             # Do not allow if the user cannot set the old value
-            if (!grep($_ eq $old_value, @{$flag->allowable_values})) {
+            if (!grep($_ eq $old_value, @{$flag->tracking_flag->allowable_values})) {
                  ThrowUserError('tracking_flags_change_denied', 
                                 { flag => $flag, value => $new_value });
             } 
@@ -272,8 +276,8 @@ sub bug_end_of_update {
         }
         if ($new_value ne $old_value) {
             # Do not allow if the user cannot set the old value or the new value
-            if (!grep($_ eq $old_value, @{$flag->allowable_values})
-                || !grep($_ eq $new_value, @{$flag->allowable_values})) 
+            if (!grep($_ eq $old_value, @{$flag->tracking_flag->allowable_values})
+                || !grep($_ eq $new_value, @{$flag->tracking_flag->allowable_values})) 
             {
                  ThrowUserError('tracking_flags_change_denied',
                                 { flag => $flag, value => $new_value });
@@ -294,7 +298,7 @@ sub bug_end_of_update {
         next if !$params->{$flag->name};
         next if $params->{$flag->name} eq '---';
         foreach my $value (@{$flag->values}) {
-            next if $value->name ne $params->{$flag->name};
+            next if $value->value ne $params->{$flag->name};
             if (!grep($_ eq $params->{$flag->name}, @{$flag->allowable_values})) {
                 ThrowUserError('tracking_flags_change_denied', 
                                { flag => $flag, value => $value });
@@ -303,7 +307,7 @@ sub bug_end_of_update {
                 ThrowUserError('tracking_flags_change_denied', 
                                { flag => $flag, value => $value });
             }
-            push(@added, { flag => $flag, added => $value->name });
+            push(@added, { flag => $flag, added => $value->value });
         }
     }
 
@@ -314,8 +318,8 @@ sub bug_end_of_update {
                 bug_id           => $bug->id,
                 value            => $change->{'added'},
             });
-            $changes->{$change->{'flag'}->tracking_flag->name} = ['', $change->{'added'}];
-            LogActivityEntry($bug->id, $change->{'flag'}->tracking_flag->name, '', 
+            $changes->{$change->{'flag'}->name} = ['', $change->{'added'}];
+            LogActivityEntry($bug->id, $change->{'flag'}->name, '', 
                              $change->{'added'}, $user->id, $timestamp);
         }
 

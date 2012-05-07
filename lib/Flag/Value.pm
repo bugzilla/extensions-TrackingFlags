@@ -112,7 +112,9 @@ sub tracking_flag {
 
 sub setter_group {
     my ($self) = @_;
-    $self->{'setter_group'} ||= Bugzilla::Group->new($self->setter_group_id);
+    if ($self->setter_group_id) {
+        $self->{'setter_group'} ||= Bugzilla::Group->new($self->setter_group_id);
+    }
     return $self->{'setter_group'};
 }
 

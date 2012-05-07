@@ -20,6 +20,8 @@ use Bugzilla::Extension::TrackingFlags::Flag::Bug;
 use Bugzilla::Extension::TrackingFlags::Flag::Value;
 use Bugzilla::Extension::TrackingFlags::Flag::Visibility;
 
+use Data::Dumper;
+
 ###############################
 ####    Initialization     ####
 ###############################
@@ -103,7 +105,6 @@ sub match {
     if ($params->{'component'} || $params->{'component_id'}
         || $params->{'product'} || $params->{'product_id'}) 
     {
-        use Data::Dumper; print STDERR Dumper $params;
         my $visible_flags 
             = Bugzilla::Extension::TrackingFlags::Flag::Visibility->match(@_);
         my @flag_ids = map { $_->tracking_flag_id } @$visible_flags;
@@ -115,8 +116,6 @@ sub match {
 
         $params->{'id'} = \@flag_ids;
     }
-
-    use Data::Dumper; print STDERR Dumper $params;
 
     return $class->SUPER::match(@_);
 }
@@ -177,7 +176,6 @@ sub values {
     $self->{'values'} ||= Bugzilla::Extension::TrackingFlags::Flag::Value->match({ 
         tracking_flag_id => $self->id
     });
-    use Data::Dumper; print STDERR Dumper $self->{'values'};
     return $self->{'values'};
 }
 
@@ -194,11 +192,11 @@ sub allowable_values {
     $user ||= Bugzilla->user;
     return $self->{'allowable_values'} if exists $self->{'allowable_values'};
     $self->{'allowable_values'} = [];
-    foreach my $value (@{$self->{'values'}}) {
+    foreach my $value (@{$self->values}) {
         if (!$value->setter_group_id 
             || $user->in_group($value->setter_group->name))
         {
-            push(@{$self->{'allowable_values'}}, $value->name);
+            push(@{$self->{'allowable_values'}}, $value->value);
         }
     }
     return $self->{'allowable_values'};

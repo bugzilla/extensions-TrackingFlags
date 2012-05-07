@@ -12,8 +12,11 @@ use base qw(Bugzilla::Object);
 use strict;
 use warnings;
 
+use Bugzilla::Extension::TrackingFlags::Flag;
+
 use Bugzilla::Bug;
 use Bugzilla::Error;
+
 use Scalar::Util qw(blessed);
 
 ###############################
