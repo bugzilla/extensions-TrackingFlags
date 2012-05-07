@@ -14,9 +14,11 @@ use warnings;
 
 use Bugzilla::Error;
 use Bugzilla::Constants;
+use Bugzilla::Util qw(detaint_natural);
+
+use Bugzilla::Extension::TrackingFlags::Flag::Bug;
 use Bugzilla::Extension::TrackingFlags::Flag::Value;
 use Bugzilla::Extension::TrackingFlags::Flag::Visibility;
-use Bugzilla::Util qw(detaint_natural);
 
 ###############################
 ####    Initialization     ####
@@ -94,6 +96,31 @@ sub create {
     return $flag;
 }
 
+sub match {
+    my $class = shift;
+    my ($params) = @_;
+
+    if ($params->{'component'} || $params->{'component_id'}
+        || $params->{'product'} || $params->{'product_id'}) 
+    {
+        use Data::Dumper; print STDERR Dumper $params;
+        my $visible_flags 
+            = Bugzilla::Extension::TrackingFlags::Flag::Visibility->match(@_);
+        my @flag_ids = map { $_->tracking_flag_id } @$visible_flags;
+        
+        delete $params->{'component'} if exists $params->{'component'};
+        delete $params->{'component_id'} if exists $params->{'component_id'};
+        delete $params->{'product'} if exists $params->{'product'};
+        delete $params->{'product_id'} if exists $params->{'product_id'};
+
+        $params->{'id'} = \@flag_ids;
+    }
+
+    use Data::Dumper; print STDERR Dumper $params;
+
+    return $class->SUPER::match(@_);
+}
+
 sub remove_from_db {
     my $self = shift;
     my $dbh = Bugzilla->dbh;
@@ -150,6 +177,7 @@ sub values {
     $self->{'values'} ||= Bugzilla::Extension::TrackingFlags::Flag::Value->match({ 
         tracking_flag_id => $self->id
     });
+    use Data::Dumper; print STDERR Dumper $self->{'values'};
     return $self->{'values'};
 }
 
@@ -174,6 +202,16 @@ sub allowable_values {
         }
     }
     return $self->{'allowable_values'};
+}
+
+sub set_flag {
+    my ($self, $bug_id) = @_;
+    $bug_id ||= $self->{'bug_id'};
+    $self->{'set_flag'} 
+        ||= Bugzilla::Extension::TrackingFlags::Flag::Bug->new(
+            { condition => "tracking_flag_id = ? AND bug_id = ?", 
+              values    => [ $self->id, $bug_id ] });
+    return $self->{'set_flag'};
 }
 
 1;

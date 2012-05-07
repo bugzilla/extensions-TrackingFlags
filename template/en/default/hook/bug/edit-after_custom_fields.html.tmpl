@@ -1,0 +1,53 @@
+[%# This Source Code Form is subject to the terms of the Mozilla Public
+  # License, v. 2.0. If a copy of the MPL was not distributed with this
+  # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+  #
+  # This Source Code Form is "Incompatible With Secondary Licenses", as
+  # defined by the Mozilla Public License, v. 2.0.
+  #%]
+
+[% IF new_tracking_flags.size %]
+  <tr>
+    <th class="field_label">Tracking Flags:</th>
+    <td>
+      <span id="tracking_flags_edit_container">
+        (<a href="#" id="tracking_flags_edit_action">edit</a>)
+      </span>
+      <div id="tracking_flags_edit_input">
+        <table id="tracking-flags">
+        [% FOREACH flag = new_tracking_flags %]
+          <tr id="row_[% flag.name FILTER html %]">
+            <td>&nbsp;</td>
+            <td>
+              <label for="[% flag.name FILTER html %]">[% flag.description FILTER html %]:</label>
+            </td>
+            <td>
+              <select id="[% flag.name FILTER html %]" 
+                      name="[% flag.name FILTER html %]">
+                <option value=""
+                        id="v0_[% flag.name FILTER html %]"
+                        [% IF flag.set_flag(bug.id).value == '---' || !flag.set_flag(bug.id) %] selected="selected"[% END %]>
+                  ---</option>
+                [% FOREACH value = flag.values %]
+                  <option value="[% value.value FILTER html %]"
+                          id="v[% loop.count %]_[% flag.name FILTER html %]"
+                          [% IF flag.set_flag(bug.id).value == value.value %] selected="selected"[% END %]>
+                          [% value.value FILTER html %]</option>
+                [% END %]
+              </select>
+              <span id="ro_[% flag.name FILTER html %]" class="bz_hidden"></span>
+            </td>
+          </tr>
+        [% END %]
+        </table>
+      </div>
+      <script type="text/javascript">
+        hideEditableField('tracking_flags_edit_container',  
+                          'tracking_flags_edit_input',  
+                          'tracking_flags_edit_action',  
+                          '',  
+                          '');  
+      </script>
+    </td>
+  </tr>
+[% END %]

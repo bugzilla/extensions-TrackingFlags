@@ -36,9 +36,70 @@ use constant UPDATE_COLUMNS => (); # imutable
 
 use constant VALIDATORS => {
     tracking_flag_id => \&_check_tracking_flag,
-    product_id       => \&_check_product_id,
-    component_id     => \&_check_component_id,
+    product_id       => \&_check_product,
+    component_id     => \&_check_component, 
 };
+
+###############################
+####      Methods          ####
+###############################
+
+sub match {
+    my ($class, $params) = @_;
+    my $dbh = Bugzilla->dbh;
+
+    # Allow matching component and product by name 
+    # (in addition to matching by ID).
+    # Borrowed from Bugzilla::Bug::match
+    my %translate_fields = (
+        product     => 'Bugzilla::Product',
+        component   => 'Bugzilla::Component',
+    );
+
+    foreach my $field (keys %translate_fields) {
+        my @ids;
+        # Convert names to ids. We use "exists" everywhere since people can
+        # legally specify "undef" to mean IS NULL 
+        if (exists $params->{$field}) {
+            my $names = $params->{$field};
+            my $type = $translate_fields{$field};
+            my $objects = Bugzilla::Object::match($type, { name => $names });
+            push(@ids, map { $_->id } @$objects);
+        }
+        # You can also specify ids directly as arguments to this function,
+        # so include them in the list if they have been specified.
+        if (exists $params->{"${field}_id"}) {
+            my $current_ids = $params->{"${field}_id"};
+            my @id_array = ref $current_ids ? @$current_ids : ($current_ids);
+            push(@ids, @id_array);
+        }
+        # We do this "or" instead of a "scalar(@ids)" to handle the case
+        # when people passed only invalid object names. Otherwise we'd
+        # end up with a SUPER::match call with zero criteria (which dies).
+        if (exists $params->{$field} or exists $params->{"${field}_id"}) {
+            delete $params->{$field};
+            $params->{"${field}_id"} = scalar(@ids) == 1 ? [ $ids[0] ] : \@ids;
+        }
+    }
+
+    my @criteria = ("1=1");
+    
+    if ($params->{product_id}) {
+        push(@criteria, $dbh->sql_in('product_id', $params->{'product_id'}));
+        if ($params->{component_id}) {
+            my $component_id = $params->{component_id};
+            push(@criteria, "(" . $dbh->sql_in('component_id', $params->{'component_id'}) . 
+                            " OR component_id IS NULL)");
+        }
+    }
+
+    my $where = join(' AND ', @criteria);
+    my $flag_ids = $dbh->selectcol_arrayref("SELECT id 
+                                               FROM tracking_flags_visibility 
+                                              WHERE $where");
+
+    return Bugzilla::Extension::TrackingFlags::Flag::Visibility->new_from_list($flag_ids);
+}
 
 ###############################
 ####      Validators       ####
@@ -54,7 +115,7 @@ sub _check_tracking_flag {
     return $flag->id;
 }
 
-sub _product_id {
+sub _check_product {
     my ($invocant, $product) = @_;
     if (blessed $product) { 
         return $product->id;
@@ -64,7 +125,7 @@ sub _product_id {
     return $product->id;
 }
 
-sub _component_id {
+sub _check_component {
     my ($invocant, $component) = @_;
     return undef unless defined $component;
     if (blessed $component) { 

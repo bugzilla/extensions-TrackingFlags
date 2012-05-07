@@ -11,6 +11,7 @@ use strict;
 
 use base qw(Bugzilla::Extension);
 
+use Bugzilla::Extension::TrackingFlags::Flag;
 use Bugzilla::Extension::TrackingFlags::Admin;
 
 use Bugzilla::Bug;
@@ -37,6 +38,30 @@ sub page_before_template {
                                 action => 'access',
                                 object => 'administrative_pages' });
         admin_edit($vars);
+    }
+}
+
+sub template_before_process {
+    my ($self, $args) = @_;
+    my $file = $args->{'file'};
+    my $vars = $args->{'vars'};
+
+    if ($file eq 'bug/create/create.html.tmpl') {
+        $vars->{'new_tracking_flags'} = Bugzilla::Extension::TrackingFlags::Flag->match({
+            product   => $vars->{'product'},
+            is_active => 1,
+        });
+    }
+    
+    if ($file eq 'bug/edit.html.tmpl') {
+        # note: bug/edit.html.tmpl doesn't support multiple bugs
+        my $bug = exists $vars->{'bugs'} ? $vars->{'bugs'}[0] : $vars->{'bug'};
+
+        $vars->{'new_tracking_flags'} = Bugzilla::Extension::TrackingFlags::Flag->match({
+            product   => $bug->product, 
+            component => $bug->component, 
+            is_active => 1, 
+        });  
     }
 }
 

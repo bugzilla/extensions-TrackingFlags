@@ -20,7 +20,7 @@ use Scalar::Util qw(blessed);
 ####    Initialization     ####
 ###############################
 
-use constant DB_TABLE => 'tracking_flags_bug';
+use constant DB_TABLE => 'tracking_flags_bugs';
 
 use constant DB_COLUMNS => qw(
     id
@@ -71,7 +71,7 @@ sub set_value { $_[0]->set('value', $_[1]); }
 ###############################
 
 sub tracking_flag_id { return $_[0]->{'tracking_flag_id'}; }
-sub bug_id           { return $_[0]->{'bug_ud'};           }
+sub bug_id           { return $_[0]->{'bug_id'};           }
 sub value            { return $_[0]->{'value'};            }
 
 sub bug {
