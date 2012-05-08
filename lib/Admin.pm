@@ -13,14 +13,17 @@ use warnings;
 use Bugzilla;
 use Bugzilla::Component;
 use Bugzilla::Error;
-use Bugzilla::Extension::TrackingFlags::Flag;
-use Bugzilla::Extension::TrackingFlags::Flag::Value;
-use Bugzilla::Extension::TrackingFlags::Flag::Visibility;
 use Bugzilla::Group;
 use Bugzilla::Product;
 use Bugzilla::Util qw(trim detaint_natural);
+
+use Bugzilla::Extension::TrackingFlags::Flag;
+use Bugzilla::Extension::TrackingFlags::Flag::Value;
+use Bugzilla::Extension::TrackingFlags::Flag::Visibility;
+
 use JSON;
 use Scalar::Util qw(blessed);
+use Data::Dumper;
 
 use base qw(Exporter);
 our @EXPORT = qw(

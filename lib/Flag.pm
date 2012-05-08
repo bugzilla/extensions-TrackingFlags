@@ -121,6 +121,20 @@ sub match {
     my $class = shift;
     my ($params) = @_;
 
+    my $include_set = delete $params->{'include_set'};
+    my $bug_id      = delete $params->{'bug_id'};
+
+    print STDERR Dumper $params;
+
+    # Retrieve all existing flags for this bug
+    my $set_flags = [];
+    if ($include_set && $bug_id) {
+        $set_flags = Bugzilla::Extension::TrackingFlags::Flag::Bug->match({ 
+            bug_id => $bug_id
+        });
+    }
+   
+    # Retrieve all flags relevant for the given product and component 
     if ($params->{'component'} || $params->{'component_id'}
         || $params->{'product'} || $params->{'product_id'}) 
     {
@@ -136,7 +150,20 @@ sub match {
         $params->{'id'} = \@flag_ids;
     }
 
-    return $class->SUPER::match(@_);
+    my $flags = $class->SUPER::match(@_);
+
+    my %flag_hash = map { $_->id => $_ } @$flags;
+    map { $flag_hash{$_->tracking_flag->id} = $_->tracking_flag } @$set_flags 
+        if @$set_flags;
+
+    # Prepopulate set_flag if bug_id passed
+    if ($bug_id) {
+        foreach my $flag (keys %flag_hash) {
+            $flag_hash{$flag}->set_flag($bug_id);
+        }
+    }
+
+    return [ values %flag_hash ];
 }
 
 sub remove_from_db {
@@ -223,6 +250,7 @@ sub allowable_values {
 sub set_flag {
     my ($self, $bug_id) = @_;
     $bug_id ||= $self->{'bug_id'};
+    $self->{'bug_id'} = $bug_id;
     $self->{'set_flag'} 
         ||= Bugzilla::Extension::TrackingFlags::Flag::Bug->new(
             { condition => "tracking_flag_id = ? AND bug_id = ?", 

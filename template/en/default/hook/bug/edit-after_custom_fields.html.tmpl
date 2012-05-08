@@ -17,25 +17,24 @@
         <table id="tracking-flags">
         [% FOREACH flag = new_tracking_flags %]
           <tr id="row_[% flag.name FILTER html %]">
-            <td>&nbsp;</td>
             <td>
               <label for="[% flag.name FILTER html %]">[% flag.description FILTER html %]:</label>
             </td>
             <td>
               <select id="[% flag.name FILTER html %]" 
                       name="[% flag.name FILTER html %]">
-                <option value=""
-                        id="v0_[% flag.name FILTER html %]"
-                        [% IF flag.set_flag(bug.id).value == '---' || !flag.set_flag(bug.id) %] selected="selected"[% END %]>
-                  ---</option>
                 [% FOREACH value = flag.values %]
+                  [% IF value.value != flag.set_value.value %]
+                    [% NEXT IF !flag.allowable_values.contains(value.value) %]
+                    [% NEXT IF !value.is_active %]
+                  [% END %]
                   <option value="[% value.value FILTER html %]"
                           id="v[% loop.count %]_[% flag.name FILTER html %]"
-                          [% IF flag.set_flag(bug.id).value == value.value %] selected="selected"[% END %]>
+                          [% IF flag.set_flag.value == value.value %] selected="selected"[% END %]
+                          [% IF !flag.allowable_values.contains(value.value) %]disabled="disabled"[% END %]>
                           [% value.value FILTER html %]</option>
                 [% END %]
               </select>
-              <span id="ro_[% flag.name FILTER html %]" class="bz_hidden"></span>
             </td>
           </tr>
         [% END %]
