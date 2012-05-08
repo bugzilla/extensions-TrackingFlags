@@ -11,34 +11,44 @@
   style_urls = [ 'extensions/TrackingFlags/web/styles/admin.css' ]
 %]
 
-<div id="new_flag">
-  [ <a href="page.cgi?id=tracking_flags_admin_edit.html">New Flag</a> ]
-</div>
-
 <table class="list" cellspacing="0">
 
 <tr>
   <th>Name</th>
   <th>Description</th>
+  <th>Sort Key</th>
   <th>Active</th>
   <th>&nbsp;</th>
 </tr>
 
 [% FOREACH flag = flags %]
-  <tr class="[% loop.count % 2 == 1 ? "report_row_odd" : "report_row_even" %]
+  <tr class="[% loop.count % 2 == 1 ? "odd_row" : "even_row" %]
              [% "disabled" UNLESS flag.is_active %]">
-    <td>[% flag.name FILTER html %]</td>
+    <td>
+      <a href="page.cgi?id=tracking_flags_admin_edit.html&amp;mode=edit&amp;flag_id=[% flag.id FILTER url_quote %]">
+        [% flag.name FILTER html %]
+      </a>
+    </td>
     <td>[% flag.description FILTER html %]</td>
+    <td>[% flag.sortkey FILTER html %]</td>
     <td>[% flag.is_active ? "Yes" : "No" %]</td>
     <td>
-      [
-        <a href="page.cgi?id=tracking_flags_admin_edit.html&amp;edit=[% flag.id FILTER url_quote %]">Edit</a>
-        | <a href="page.cgi?id=tracking_flags_admin_edit.html&amp;copy=[% flag.id FILTER url_quote %]">Copy</a>
-      ]
+        <a href="page.cgi?id=tracking_flags_admin_edit.html&amp;mode=copy&amp;copy_from=[% flag.id FILTER url_quote %]">Copy</a>
     </td>
   </tr>
 [% END %]
 
 </table>
+
+<div id="new_flag">
+<a href="page.cgi?id=tracking_flags_admin_edit.html">Add Flag</a>
+</div>
+
+<pre>
+todo:
+  - bulk edit of values and visibility
+    - add value/visibility to "these flags"
+    - remove value/visibility from "these flags"
+</pre>
 
 [% INCLUDE global/footer.html.tmpl %]

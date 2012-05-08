@@ -5,13 +5,7 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as
  * defined by the Mozilla Public License, v. 2.0. */
 
-.hidden {
-    display: none;
-}
-
-.txt_icon {
-    font-family: monospace;
-}
+/* list */
 
 .list {
     border: 1px solid #888888;
@@ -50,6 +44,8 @@
 #new_flag {
     margin: 1em 0em;
 }
+
+/* edit */
 
 .edit {
     margin-bottom: 2em;
@@ -91,3 +87,21 @@
     width: 10em;
 }
 
+.hidden {
+    display: none;
+}
+
+.txt_icon {
+    font-family: monospace;
+}
+
+.admin_error {
+    border: 1px solid red;
+    box-shadow: 0px 0px 4px #ff0000;
+    -webkit-box-shadow: 0px 0px 4px #ff0000;
+    -moz-box-shadow: 0px 0px 4px #ff0000;
+}
+
+.admin_error_text {
+    color: #cc0000;
+}

@@ -5,14 +5,19 @@
  * This Source Code Form is "Incompatible With Secondary Licenses", as
  * defined by the Mozilla Public License, v. 2.0. */
 
+// init
+
 var Dom = YAHOO.util.Dom;
 var Event = YAHOO.util.Event;
 
 Event.onDOMReady(function() {
   try {
-    Event.addListener('flag_name', 'blur', trim_value, Dom.get('flag_name'));
-    Event.addListener('flag_desc', 'blur', trim_value, Dom.get('flag_desc'));
-    Event.addListener('flag_sort', 'blur', int_value, Dom.get('flag_sort'));
+    if (!JSON)
+      JSON = YAHOO.lang.JSON;
+
+    Event.addListener('flag_name', 'change', change_flag_name, Dom.get('flag_name'));
+    Event.addListener('flag_desc', 'change', change_string_value, Dom.get('flag_desc'));
+    Event.addListener('flag_sort', 'change', change_int_value, Dom.get('flag_sort'));
 
     Event.addListener('product', 'change', function() {
       if (Dom.get('product').value == '')
@@ -21,6 +26,7 @@ Event.onDOMReady(function() {
 
     update_flag_values();
     update_flag_visibility();
+    tag_missing_values();
   } catch(e) {
     console.error(e);
   }
@@ -28,9 +34,26 @@ Event.onDOMReady(function() {
 
 // field
 
+function change_flag_name(e, o) {
+  change_string_value(e, o);
+  if (o.value == '')
+    return;
+  o.value = o.value.replace(/[^a-z0-9_]/g, '_');
+  if (!o.value.match(/^cf_/))
+    o.value = 'cf_' + o.value;
+  if (Dom.get('flag_desc').value == '') {
+    var desc = o.value;
+    desc = desc.replace(/^cf_/, '');
+    desc = desc.replace(/_/g, '-');
+    Dom.get('flag_desc').value = desc;
+    tag_missing_value(Dom.get('flag_desc'));
+  }
+}
+
 function inc_field(id, amount) {
   var el = Dom.get(id);
   el.value = el.value.match(/-?\d+/) * 1 + amount;
+  change_int_value(null, el);
 }
 
 // values
@@ -55,21 +78,31 @@ function update_flag_values() {
 
     // value
     cell = row.insertCell(0);
-    var inputEl = document.createElement('input');
-    inputEl.id = 'value_' + i;
-    inputEl.type = 'text';
-    inputEl.className = 'option_value';
-    inputEl.value = value.value;
-    Event.addListener(inputEl, 'blur', trim_value, inputEl);
-    Event.addListener(inputEl, 'change', function(e, o) {
-        flag_values[o.id.match(/\d+$/)].value = o.value;
-      }, inputEl);
-    cell.appendChild(inputEl);
+    if (value.value == '---') {
+      cell.innerHTML = '---';
+    } else {
+      var inputEl = document.createElement('input');
+      inputEl.id = 'value_' + i;
+      inputEl.type = 'text';
+      inputEl.className = 'option_value';
+      inputEl.value = value.value;
+      Event.addListener(inputEl, 'change', change_string_value, inputEl);
+      Event.addListener(inputEl, 'change', function(e, o) {
+          flag_values[o.id.match(/\d+$/)].value = o.value;
+          tag_invalid_values();
+        }, inputEl);
+      Event.addListener(inputEl, 'keyup', function(e, o) {
+          if ((e.key || e.keyCode) == 27 && o.value == '')
+            remove_value(o.id.match(/\d+$/));
+        }, inputEl);
+      cell.appendChild(inputEl);
+    }
 
     // setter
     cell = row.insertCell(1);
     var selectEl = document.createElement('select');
     selectEl.id = 'setter_' + i;
+    Event.addListener(selectEl, 'change', change_select_value, selectEl);
     var optionEl = document.createElement('option');
     optionEl.value = '';
     selectEl.appendChild(optionEl);
@@ -83,34 +116,66 @@ function update_flag_values() {
     }
     Event.addListener(selectEl, 'change', function(e, o) {
         flag_values[o.id.match(/\d+$/)].setter_group_id = o.value;
+        tag_invalid_values();
       }, selectEl);
     cell.appendChild(selectEl);
 
     // active
     cell = row.insertCell(2);
-    inputEl = document.createElement('input');
-    inputEl.id = 'active_' + i;
-    inputEl.type = 'checkbox';
-    inputEl.checked = value.is_active;
-    Event.addListener(inputEl, 'change', function(e, o) {
-        flag_values[o.id.match(/\d+$/)].is_active = o.checked;
-      }, inputEl);
-    cell.appendChild(inputEl);
+    if (value.value == '---') {
+      cell.innerHTML = 'Yes';
+    } else {
+      var inputEl = document.createElement('input');
+      inputEl.type = 'checkbox';
+      inputEl.checked = value.is_active;
+      Event.addListener(inputEl, 'change', function(e, o) {
+          flag_values[o.id.match(/\d+$/)].is_active = o.checked;
+        }, inputEl);
+      cell.appendChild(inputEl);
+    }
 
     // actions
     cell = row.insertCell(3);
-    cell.innerHTML = 
-      '[ ' +
+    var html =
+      '[' +
       (i == 0
-        ? '<span class="txt_icon">&nbsp;</span>'
-        : '<a class="txt_icon" href="#" onclick="value_move_up(' + i + ');return false">&Delta;</a>'
+        ? '<span class="txt_icon">&nbsp;-&nbsp;</span>'
+        : '<a class="txt_icon" href="#" onclick="value_move_up(' + i + ');return false"> &Delta; </a>'
       ) +
-      ' | ' +
+      '|' +
       ( i == l - 1
-        ? '<span class="txt_icon">&nbsp;</span>'
-        : '<a class="txt_icon" href="#" onclick="value_move_down(' + i + ');return false">&nabla;</a>'
-      ) +
-      ' | <a href="#" onclick="remove_value(' + i + ');return false">Remove</a> ]';
+        ? '<span class="txt_icon">&nbsp;-&nbsp;</span>'
+        : '<a class="txt_icon" href="#" onclick="value_move_down(' + i + ');return false"> &nabla; </a>'
+      );
+    if (value.value != '---')
+      html += '| <a href="#" onclick="remove_value(' + i + ');return false">Remove</a>';
+    html += ']';
+    cell.innerHTML = html;
+  }
+
+  tag_invalid_values();
+}
+
+function tag_invalid_values() {
+  // reset
+  for (var i = 0, l = flag_values.length; i < l; i++) {
+    Dom.removeClass('value_' + i, 'admin_error');
+  }
+
+  for (var i = 0, l = flag_values.length; i < l; i++) {
+    // missing
+    if (flag_values[i].value == '')
+      Dom.addClass('value_' + i, 'admin_error');
+    if (!flag_values[i].setter_group_id)
+      Dom.addClass('setter_' + i, 'admin_error');
+
+    // duplicate values
+    for (var j = i; j < l; j++) {
+      if (i != j && flag_values[i].value == flag_values[j].value) {
+        Dom.addClass('value_' + i, 'admin_error');
+        Dom.addClass('value_' + j, 'admin_error');
+      }
+    }
   }
 }
 
@@ -166,6 +231,14 @@ function update_flag_visibility() {
     tbl.deleteRow(2);
   }
 
+  // show something if there aren't any components
+
+  if (!flag_visibility.length) {
+    var row = tbl.insertRow(2);
+    var cell = row.insertCell(0);
+    cell.innerHTML = '<i class="admin_error_text">missing</i>';
+  }
+
   // add all entries
 
   for (var i = 0, l = flag_visibility.length; i < l; i++) {
@@ -191,18 +264,53 @@ function update_flag_visibility() {
 }
 
 function add_visibility() {
+  // validation
   var product = Dom.get('product').value;
   var component = Dom.get('component').value;
   if (!product) {
     alert('Please select a product.');
     return;
   }
+
+  // don't allow duplicates
+  for (var i = 0, l = flag_visibility.length; i < l; i++) {
+    if (flag_visibility[i].product == product && flag_visibility[i].component == component) {
+      Dom.get('product').value = '';
+      Dom.get('component').options.length = 0;
+      return;
+    }
+  }
+
+  if (component == '') {
+    // if we're adding an "any" component, remove non-any components
+    for (var i = 0; i < flag_visibility.length; i++) {
+      var visibility = flag_visibility[i];
+      if (visibility.product == product) {
+        flag_visibility.splice(i, 1);
+        i--;
+      }
+    }
+  } else {
+    // don't add non-any components if an "any" component exists
+    for (var i = 0, l = flag_visibility.length; i < l; i++) {
+      var visibility = flag_visibility[i];
+      if (visibility.product == product && !visibility.component) {
+        return;
+      }
+    }
+  }
+
+  // add to model
   var visibility = new Object();
   visibility.id = 0;
   visibility.product = product;
   visibility.component = component;
   flag_visibility[flag_visibility.length] = visibility;
+
+  // update ui
   update_flag_visibility();
+  Dom.get('product').value = '';
+  Dom.get('component').options.length = 0;
 }
 
 function remove_visibility(idx) {
@@ -210,13 +318,49 @@ function remove_visibility(idx) {
   update_flag_visibility();
 }
 
-// utils
+// validation and submission
 
-function trim_value(e, o) {
-  o.value = YAHOO.lang.trim(o.value);
+function tag_missing_values() {
+  var els = document.getElementsByTagName('input');
+  for (var i = 0, l = els.length; i < l; i++) {
+    var el = els[i];
+    if (el.id.match(/^(flag|value)_/))
+      tag_missing_value(el);
+  }
 }
 
-function int_value(e, o) {
+function tag_missing_value(el) {
+  el.value == ''
+    ? Dom.addClass(el, 'admin_error')
+    : Dom.removeClass(el, 'admin_error');
+}
+
+function on_submit() {
+  // let perl manage most validation errors, because they are clearly marked
+  // the exception is an empty visibility list, so catch that here as well
+  if (!flag_visibility.length) {
+    alert('You must provide at least one product for visibility.');
+    return false;
+  }
+
+  Dom.get('values').value = JSON.stringify(flag_values);
+  Dom.get('visibility').value = JSON.stringify(flag_visibility);
+  return true;
+}
+
+// utils
+
+function change_string_value(e, o) {
+  o.value = YAHOO.lang.trim(o.value);
+  tag_missing_value(o);
+}
+
+function change_int_value(e, o) {
   o.value = o.value.match(/-?\d+/);
+  tag_missing_value(o);
+}
+
+function change_select_value(e, o) {
+  tag_missing_value(o);
 }
 

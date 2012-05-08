@@ -142,7 +142,7 @@ sub _check_component {
 
 sub tracking_flag_id { return $_[0]->{'tracking_flag_id'}; }
 sub product_id       { return $_[0]->{'product_id'};       }
-sub component_id     { return $_[0]->{'componet_id'};      }
+sub component_id     { return $_[0]->{'component_id'};     }
 
 sub tracking_flag {
     my ($self) = @_;

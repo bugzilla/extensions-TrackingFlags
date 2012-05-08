@@ -14,6 +14,7 @@ use warnings;
 
 use Bugzilla::Error;
 use Bugzilla::Group;
+use Bugzilla::Util qw(detaint_natural);
 use Scalar::Util qw(blessed);
 
 ###############################
@@ -89,10 +90,10 @@ sub _check_sortkey {
 ####       Setters         ####
 ###############################
 
-sub set_setter_group { $_[0]->set('setter_group_id', $_[1]); }
-sub set_value        { $_[0]->set('value', $_[1]);           }
-sub set_sortkey      { $_[0]->set('sortkey', $_[1]);         }
-sub set_is_active    { $_[0]->set('is_active', $_[1]);       }
+sub set_setter_group_id { $_[0]->set('setter_group_id', $_[1]); }
+sub set_value           { $_[0]->set('value', $_[1]);           }
+sub set_sortkey         { $_[0]->set('sortkey', $_[1]);         }
+sub set_is_active       { $_[0]->set('is_active', $_[1]);       }
 
 ###############################
 ####      Accessors        ####

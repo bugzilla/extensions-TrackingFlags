@@ -98,6 +98,25 @@ sub create {
     return $flag;
 }
 
+sub update {
+    my $self = shift;
+    my $dbh = Bugzilla->dbh;
+
+    $dbh->bz_start_transaction();
+
+    my $old_self = $self->new($self->id);
+    my $changes = $self->SUPER::update(@_);
+    
+    # Update the fielddefs entry
+    $dbh->do("UPDATE fielddefs SET name=? WHERE name=?",
+             undef,
+             $self->name, $old_self->name);
+
+    $dbh->bz_commit_transaction();
+
+    return $changes;
+}
+
 sub match {
     my $class = shift;
     my ($params) = @_;
@@ -136,7 +155,6 @@ sub remove_from_db {
 sub _check_name {
     my ($invocant, $name) = @_;
     $name || ThrowCodeError('param_required', { param => 'name' });
-    # XXX ensure name starts with cf_
     return $name;
 }
 
