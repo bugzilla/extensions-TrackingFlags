@@ -22,16 +22,21 @@
 </tr>
 
 [% FOREACH flag = flags %]
-  <tr class="[% loop.count % 2 == 1 ? "odd_row" : "even_row" %]
-             [% "disabled" UNLESS flag.is_active %]">
-    <td>
+  <tr class="[% loop.count % 2 == 1 ? "odd_row" : "even_row" %]">
+    <td [% 'class="disabled"' UNLESS flag.is_active %]>
       <a href="page.cgi?id=tracking_flags_admin_edit.html&amp;mode=edit&amp;flag_id=[% flag.id FILTER url_quote %]">
         [% flag.name FILTER html %]
       </a>
     </td>
-    <td>[% flag.description FILTER html %]</td>
-    <td>[% flag.sortkey FILTER html %]</td>
-    <td>[% flag.is_active ? "Yes" : "No" %]</td>
+    <td [% 'class="disabled"' UNLESS flag.is_active %]>
+      [% flag.description FILTER html %]
+    </td>
+    <td [% 'class="disabled"' UNLESS flag.is_active %]>
+      [% flag.sortkey FILTER html %]
+    </td>
+    <td>
+      [% flag.is_active ? "Yes" : "No" %]
+    </td>
     <td>
         <a href="page.cgi?id=tracking_flags_admin_edit.html&amp;mode=copy&amp;copy_from=[% flag.id FILTER url_quote %]">Copy</a>
     </td>

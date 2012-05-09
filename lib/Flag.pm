@@ -248,6 +248,7 @@ sub allowable_values {
 }
 
 sub set_flag {
+    # XXX rename to is_set to avoid confusion with this being a setter?
     my ($self, $bug_id) = @_;
     $bug_id ||= $self->{'bug_id'};
     $self->{'bug_id'} = $bug_id;
@@ -256,6 +257,17 @@ sub set_flag {
             { condition => "tracking_flag_id = ? AND bug_id = ?", 
               values    => [ $self->id, $bug_id ] });
     return $self->{'set_flag'};
+}
+
+sub has_values {
+    my ($self) = @_;
+    my $dbh = Bugzilla->dbh;
+    return scalar $dbh->selectrow_array("
+        SELECT 1
+          FROM tracking_flags_bugs
+         WHERE tracking_flag_id = ? " .
+               $dbh->sql_limit(1),
+        undef, $self->id);
 }
 
 1;

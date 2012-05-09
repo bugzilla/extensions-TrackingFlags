@@ -45,7 +45,8 @@ use constant VALIDATORS => {
 ###############################
 
 sub match {
-    my ($class, $params) = @_;
+    my $class= shift;
+    my ($params) = @_;
     my $dbh = Bugzilla->dbh;
 
     # Allow matching component and product by name 
@@ -80,6 +81,11 @@ sub match {
             delete $params->{$field};
             $params->{"${field}_id"} = scalar(@ids) == 1 ? [ $ids[0] ] : \@ids;
         }
+    }
+
+    # If we aren't matching on the product, use the default matching code
+    if (!exists $params->{product_id}) {
+        return $class->SUPER::match(@_);
     }
 
     my @criteria = ("1=1");

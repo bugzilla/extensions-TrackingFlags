@@ -23,7 +23,6 @@ use Bugzilla::Extension::TrackingFlags::Flag::Visibility;
 
 use JSON;
 use Scalar::Util qw(blessed);
-use Data::Dumper;
 
 use base qw(Exporter);
 our @EXPORT = qw(
@@ -38,7 +37,7 @@ our @EXPORT = qw(
 sub admin_list {
     my ($vars) = @_;
 
-    $vars->{flags} = Bugzilla::Extension::TrackingFlags::Flag->match({});
+    $vars->{flags} = [ Bugzilla::Extension::TrackingFlags::Flag->get_all() ];
 }
 
 sub admin_edit {
@@ -48,11 +47,14 @@ sub admin_edit {
     $vars->{groups}     = _groups_to_json();
     $vars->{mode}       = $input->{mode} || 'new';
     $vars->{flag_id}    = $input->{flag_id} || 0;
-    $vars->{can_delete} = 0;
 
     if ($input->{delete}) {
-        # XXX
-        die "not implemented\n";
+        my $flag = Bugzilla::Extension::TrackingFlags::Flag->new($vars->{flag_id})
+            || ThrowCodeError('tracking_flags_invalid_item_id', { item => 'flag', id => $vars->{flag_id} });
+        $flag->remove_from_db();
+
+        $vars->{mode}      = 'deleted';
+        $vars->{flag_name} = $flag->name;
 
     } elsif ($input->{save}) {
         # save
@@ -61,9 +63,10 @@ sub admin_edit {
         _validate($flag, $values, $visibilities);
         my $flag_obj = _update_db($flag, $values, $visibilities);
 
-        $vars->{flag}       = $flag;
+        $vars->{flag}       = $flag_obj;
         $vars->{values}     = _flag_values_to_json($values);
         $vars->{visibility} = _flag_visibility_to_json($visibilities);
+        $vars->{can_delete} = !$flag_obj->has_values;
 
         if ($vars->{mode} eq 'new') {
             $vars->{message} = 'tracking_flags_created';
@@ -75,28 +78,35 @@ sub admin_edit {
         # initial load
 
         if ($vars->{mode} eq 'edit') {
-            $vars->{flag}       = Bugzilla::Extension::TrackingFlags::Flag->new($vars->{flag_id})
-                || ThrowCodeError('tracking_flags_invalid', { what => 'flag' });
-            $vars->{values}     = _flag_values_to_json($vars->{flag}->values);
-            $vars->{visibility} = _flag_visibility_to_json($vars->{flag}->visibility);
-            $vars->{can_delete} = 1; # XXX check for bug values
+            # edit - straight load
+            my $flag = Bugzilla::Extension::TrackingFlags::Flag->new($vars->{flag_id})
+                || ThrowCodeError('tracking_flags_invalid_item_id', { item => 'flag', id => $vars->{flag_id} });
+            $vars->{flag}       = $flag;
+            $vars->{values}     = _flag_values_to_json($flag->values);
+            $vars->{visibility} = _flag_visibility_to_json($flag->visibility);
+            $vars->{can_delete} = !$flag->has_values;
 
         } elsif ($vars->{mode} eq 'copy') {
+            # copy - load the source flag
             $vars->{mode} = 'new';
             my $flag = Bugzilla::Extension::TrackingFlags::Flag->new($input->{copy_from})
-                || ThrowCodeError('tracking_flags_invalid', { what => 'flag' });
+                || ThrowCodeError('tracking_flags_invalid_item_id', { item => 'flag', id => $vars->{copy_from} });
 
+            # increment the number at the end of the name and description
             if ($flag->name =~ /^(\D+)(\d+)$/) {
                 $flag->set_name("$1" . ($2 + 1));
             }
             if ($flag->description =~ /^(\D+)(\d+)$/) {
                 $flag->set_description("$1" . ($2 + 1));
             }
-            $flag->set_sortkey($flag->sortkey + 5);
+            $flag->set_sortkey(_next_unique_sortkey($flag->sortkey));
+            # always default new flags as active, even when copying an inactive one
+            $flag->set_is_active(1);
 
             $vars->{flag}       = $flag;
-            $vars->{values}     = _flag_values_to_json($flag->values);
-            $vars->{visibility} = _flag_visibility_to_json($flag->visibility);
+            $vars->{values}     = _flag_values_to_json($flag->values, 1);
+            $vars->{visibility} = _flag_visibility_to_json($flag->visibility, 1);
+            $vars->{can_delete} = 0;
 
         } else {
             $vars->{mode} = 'new';
@@ -112,6 +122,8 @@ sub admin_edit {
                     is_active       => 1,
                 },
             ]);
+            $vars->{visibility} = [];
+            $vars->{can_delete} = 0;
         }
     }
 }
@@ -134,7 +146,7 @@ sub _load_from_input {
 
     # values
 
-    my $values = decode_json($input->{values});
+    my $values = decode_json($input->{values} || '[]');
     foreach my $value (@$values) {
         $value->{value}           = '' unless exists $value->{value} && defined $value->{value};
         $value->{setter_group_id} = '' unless $value->{setter_group_id};
@@ -143,13 +155,26 @@ sub _load_from_input {
 
     # vibility
 
-    my $visibilities = decode_json($input->{visibility});
+    my $visibilities = decode_json($input->{visibility} || '[]');
     foreach my $visibility (@$visibilities) {
         $visibility->{product}   = '' unless exists $visibility->{product} && defined $visibility->{product};
         $visibility->{component} = '' unless exists $visibility->{component} && defined $visibility->{component};
     }
 
     return ($flag, $values, $visibilities);
+}
+
+sub _next_unique_sortkey {
+    my ($sortkey) = @_;
+
+    my %current;
+    foreach my $flag (Bugzilla::Extension::TrackingFlags::Flag->get_all()) {
+        $current{$flag->sortkey} = 1;
+    }
+
+    $sortkey += 5;
+    $sortkey += 5 while exists $current{$sortkey};
+    return $sortkey;
 }
 
 #
@@ -170,8 +195,18 @@ sub _validate {
 
     $flag->{name} =~ /^cf_/
         || ThrowUserError('tracking_flags_cf_prefix');
-    Bugzilla::Field->new({ name => $flag->{name} })
-        && ThrowUserError('tracking_flags_duplicate_field', { name => $flag->{name} });
+
+    if ($flag->{id}) {
+        my $old_flag = Bugzilla::Extension::TrackingFlags::Flag->new($flag->{id})
+            || ThrowCodeError('tracking_flags_invalid_item_id', { item => 'flag', id => $flag->{id} });
+        if ($flag->{name} ne $old_flag->name) {
+            Bugzilla::Field->new({ name => $flag->{name} })
+                && ThrowUserError('tracking_flags_duplicate_field', { name => $flag->{name} });
+        }
+    } else {
+        Bugzilla::Field->new({ name => $flag->{name} })
+            && ThrowUserError('tracking_flags_duplicate_field', { name => $flag->{name} });
+    }
 
     # values
 
@@ -332,11 +367,13 @@ sub _groups_to_json {
 }
 
 sub _flag_values_to_json {
-    my ($values) = @_;
+    my ($values, $is_copy) = @_;
+    # setting is_copy will set the id's to zero, to force new values rather
+    # than editing existing ones
     my @data;
     foreach my $value (@$values) {
         push @data, {
-            id              => $value->{id},
+            id              => $is_copy ? 0 : $value->{id},
             value           => $value->{value},
             setter_group_id => $value->{setter_group_id},
             is_active       => $value->{is_active} ? JSON::true : JSON::false,
@@ -346,7 +383,9 @@ sub _flag_values_to_json {
 }
 
 sub _flag_visibility_to_json {
-    my ($visibilities) = @_;
+    my ($visibilities, $is_copy) = @_;
+    # setting is_copy will set the id's to zero, to force new visibilites
+    # rather than editing existing ones
     my @data;
 
     foreach my $visibility (@$visibilities) {
@@ -362,7 +401,7 @@ sub _flag_visibility_to_json {
             $component = undef;
         }
         push @data, {
-            id        => $visibility->{id},
+            id        => $is_copy ? 0 : $visibility->{id},
             product   => $product,
             component => $component,
         };

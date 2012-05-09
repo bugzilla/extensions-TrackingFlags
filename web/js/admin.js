@@ -62,6 +62,8 @@ function update_flag_values() {
   // update the values table from the flag_values global
 
   var tbl = Dom.get('flag_values');
+  if (!tbl)
+    return;
 
   // remove current entries
   while (tbl.rows.length > 3) {
@@ -225,6 +227,8 @@ function update_flag_visibility() {
   // update the visibility table from the flag_visibility global
 
   var tbl = Dom.get('flag_visibility');
+  if (!tbl)
+    return;
 
   // remove current entries
   while (tbl.rows.length > 3) {
@@ -335,7 +339,18 @@ function tag_missing_value(el) {
     : Dom.removeClass(el, 'admin_error');
 }
 
+function delete_confirm(flag) {
+  if (confirm('Are you sure you want to delete the flag ' + flag + ' ?')) {
+    Dom.get('delete').value = 1;
+    return true;
+  } else {
+    return false;
+  }
+}
+
 function on_submit() {
+  if (Dom.get('delete') && Dom.get('delete').value)
+    return;
   // let perl manage most validation errors, because they are clearly marked
   // the exception is an empty visibility list, so catch that here as well
   if (!flag_visibility.length) {
