@@ -81,7 +81,10 @@ sub create {
     # do not need. Also we do this so as not to add a 
     # another column to the bugs table.
     # We will create the entry as a custom field with a 
-    # type of FIELD_TYPE_SINGLE_SELECT 
+    # type of FIELD_TYPE_FREETEXT so Bugzilla will not
+    # try to look for other external value tables.
+    # Also we set custom = 2 so that it doesn't show
+    # up in editfields.cgi (hack:)
     $dbh->do("INSERT INTO fielddefs 
              (name, description, sortkey, type, custom, obsolete, buglist)
               VALUES 
@@ -90,8 +93,8 @@ sub create {
              $flag->name,
              $flag->description,
              $flag->sortkey,
-             FIELD_TYPE_SINGLE_SELECT, 
-             1, 1, 1);
+             FIELD_TYPE_FREETEXT, 
+             2, 1, 1);
 
     $dbh->bz_commit_transaction();
             
@@ -121,14 +124,11 @@ sub match {
     my $class = shift;
     my ($params) = @_;
 
-    my $include_set = delete $params->{'include_set'};
-    my $bug_id      = delete $params->{'bug_id'};
+    my $bug_id = delete $params->{'bug_id'};
 
-    print STDERR Dumper $params;
-
-    # Retrieve all existing flags for this bug
+    # Retrieve all existing flags for this bug if bug_id given
     my $set_flags = [];
-    if ($include_set && $bug_id) {
+    if ($bug_id) {
         $set_flags = Bugzilla::Extension::TrackingFlags::Flag::Bug->match({ 
             bug_id => $bug_id
         });
@@ -153,8 +153,10 @@ sub match {
     my $flags = $class->SUPER::match(@_);
 
     my %flag_hash = map { $_->id => $_ } @$flags;
-    map { $flag_hash{$_->tracking_flag->id} = $_->tracking_flag } @$set_flags 
-        if @$set_flags;
+
+    if (@$set_flags) {
+        map { $flag_hash{$_->tracking_flag->id} = $_->tracking_flag } @$set_flags;
+    }
 
     # Prepopulate set_flag if bug_id passed
     if ($bug_id) {

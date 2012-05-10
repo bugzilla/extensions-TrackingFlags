@@ -66,7 +66,6 @@ sub template_before_process {
             component   => $bug->component, 
             bug_id      => $bug->id,
             is_active   => 1, 
-            include_set => 1, 
         });  
     }
 }
@@ -214,10 +213,55 @@ sub db_schema_abstract_schema {
 sub buglist_columns {
     my ($self,  $args) = @_;
     my $columns = $args->{columns};
+    my $dbh = Bugzilla->dbh;
     my @tracking_flags = Bugzilla::Extension::TrackingFlags::Flag->get_all;
     foreach my $flag (@tracking_flags) {
-        $columns->{$flag->description} = { name => $flag->name };
+        my $sql = "(SELECT tracking_flags_bugs.value " . 
+                  "   FROM tracking_flags JOIN tracking_flags_bugs " .
+                  "        ON tracking_flags.id = tracking_flags_bugs.tracking_flag_id " .
+                  "  WHERE tracking_flags.name = " . $dbh->quote($flag->name) .
+                  "        AND tracking_flags_bugs.bug_id = bugs.bug_id)";
+        $columns->{$flag->name} = { 
+            name  => $sql,
+            title => $flag->description
+        };
     }
+}
+
+sub search_operator_field_override {
+    my ($self, $args) = @_;
+    my $operators = $args->{'operators'};
+
+    my @tracking_flags = Bugzilla::Extension::TrackingFlags::Flag->get_all;
+    foreach my $flag (@tracking_flags) {
+        $operators->{$flag->name} = {
+            _non_changed => sub { 
+                _tracking_flags_search_nonchanged($flag->name, @_) 
+            }
+        };
+    }
+}
+
+sub _tracking_flags_search_nonchanged {
+    my $flag_name = shift;
+    my $self      = shift;
+    my %func_args = @_;
+    my ($t, $chartid, $supptables, $ff) =
+        @func_args{qw(t chartid supptables ff)};
+    my $dbh = Bugzilla->dbh;
+
+    return if ($$t =~ m/^changed/);
+
+    my $bugs_alias  = "tracking_flags_bugs_$$chartid";
+    my $flags_alias = "tracking_flags_$$chartid";
+
+    push(@$supptables, "LEFT JOIN tracking_flags_bugs AS $bugs_alias " .
+                       "ON bugs.bug_id = $bugs_alias.bug_id");
+    push(@$supptables, "LEFT JOIN tracking_flags AS $flags_alias " .
+                       "ON $bugs_alias.tracking_flag_id = $flags_alias.id " .
+                       "AND $flags_alias.name = " . $dbh->quote($flag_name));
+    
+    $$ff = "$bugs_alias.value";
 }
 
 sub bug_end_of_create {
@@ -237,14 +281,15 @@ sub bug_end_of_create {
         next if !$params->{$flag->name};
         foreach my $value (@{$flag->values}) {
             next if $value->value ne $params->{$flag->name};
-            if (!grep($_ eq $params->{$flag->name}, @{$flag->allowable_values})) {
+            next if $value->value eq '---'; # do not insert if value is '---', same as empty
+            if (!grep($_ eq $value->value, @{$flag->allowable_values})) {
                 ThrowUserError('tracking_flags_change_denied', 
                                { flag => $flag, value => $value });
             }
             Bugzilla::Extension::TrackingFlags::Flag::Bug->create({
-                tracking_flag_id => $flag->id, 
+                tracking_flag_id => $flag->id,
                 bug_id           => $bug->id,
-                value            => $value->value, 
+                value            => $value->value,
             });
         }
     }
@@ -258,17 +303,19 @@ sub bug_end_of_update {
     my $params    = Bugzilla->input_params;
     my $user      = Bugzilla->user;
 
-    my $tracking_flags = Bugzilla::Extension::TrackingFlags::Flag->match({ 
-        bug_id           => $bug->id, 
-        is_active_or_set => 1 
+    # Do not filter by product/component as we may be changing those
+    my $tracking_flags = Bugzilla::Extension::TrackingFlags::Flag->match({
+        bug_id    => $bug->id, 
+        is_active => 1, 
     });
 
-    my @updated;
+    my (@flag_changes);
     foreach my $flag (@$tracking_flags) {
-        next if !$params->{$flag->name};
-        my $new_value = $params->{$flag->name};
-        my $old_value = $flag->set_flag->value;
+        my $new_value = $params->{$flag->name} || '---';
+        my $old_value = $flag->set_flag ? $flag->set_flag->value : '---';
+        
         next if $new_value eq $old_value;
+
         if ($new_value ne $old_value) {
             # Do not allow if the user cannot set the old value or the new value
             if (!grep($_ eq $old_value, @{$flag->allowable_values})
@@ -277,22 +324,34 @@ sub bug_end_of_update {
                  ThrowUserError('tracking_flags_change_denied',
                                 { flag => $flag, value => $new_value });
             } 
-            push(@updated, { flag    => $flag, 
-                             added   => $new_value, 
-                             removed => $old_value });
+            push(@flag_changes, { flag    => $flag, 
+                                  added   => $new_value, 
+                                  removed => $old_value });
         }
     }
 
-    if (@updated) {
-        foreach my $change (@updated) {
-            my $flag    = $change->{'flag'};
-            my $added   = $change->{'added'};
-            my $removed = $change->{'removed'};
+    foreach my $change (@flag_changes) {
+        my $flag    = $change->{'flag'};
+        my $added   = $change->{'added'};
+        my $removed = $change->{'removed'};
+
+        if ($added eq '---') {
+            $flag->set_flag->remove_from_db();
+        }
+        elsif ($removed eq '---') {
+            Bugzilla::Extension::TrackingFlags::Flag::Bug->create({
+                tracking_flag_id => $flag->id,
+                bug_id           => $bug->id,
+                value            => $added,
+            });
+        }
+        else {
             $flag->set_flag->set_value($added);
             $flag->set_flag->update($timestamp);
-            $changes->{$flag->name} = [ $removed, $added ];
-            LogActivityEntry($bug->id, $flag->name, $removed, $added, $user->id, $timestamp);
         }
+
+        $changes->{$flag->name} = [ $removed, $added ];
+        LogActivityEntry($bug->id, $flag->name, $removed, $added, $user->id, $timestamp);
     }
 }
 

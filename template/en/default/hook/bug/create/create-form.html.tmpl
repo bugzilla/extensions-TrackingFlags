@@ -25,9 +25,6 @@
             <td>
               <select id="[% flag.name FILTER html %]" 
                       name="[% flag.name FILTER html %]">
-                <option value="" id="v0_[% flag.name FILTER html %]" 
-                        selected="selected">
-                  ---</option>
                 [% FOREACH value = flag.values %]
                   <option value="[% value.value FILTER html %]"
                           id="v[% loop.count %]_[% flag.name FILTER html %]">
