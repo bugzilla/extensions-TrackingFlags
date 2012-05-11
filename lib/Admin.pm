@@ -100,6 +100,7 @@ sub admin_edit {
                 $flag->set_description("$1" . ($2 + 1));
             }
             $flag->set_sortkey(_next_unique_sortkey($flag->sortkey));
+            $flag->set_is_project(0);
             # always default new flags as active, even when copying an inactive one
             $flag->set_is_active(1);
 
@@ -111,8 +112,9 @@ sub admin_edit {
         } else {
             $vars->{mode} = 'new';
             $vars->{flag} = {
-                sortkey   => 0,
-                is_active => 1, 
+                sortkey    => 0,
+                is_project => 0, 
+                is_active  => 1, 
             };
             $vars->{values} = _flag_values_to_json([
                 {
@@ -122,7 +124,7 @@ sub admin_edit {
                     is_active       => 1,
                 },
             ]);
-            $vars->{visibility} = [];
+            $vars->{visibility} = '';
             $vars->{can_delete} = 0;
         }
     }
@@ -138,10 +140,12 @@ sub _load_from_input {
         name        => trim($input->{flag_name} || ''),
         description => trim($input->{flag_desc} || ''),
         sortkey     => $input->{flag_sort} || 0,
+        is_project  => $input->{flag_project} ? 1 : 0, 
         is_active   => $input->{flag_active} ? 1 : 0,
     };
     detaint_natural($flag->{id});
     detaint_natural($flag->{sortkey});
+    detaint_natural($flag->{is_project});
     detaint_natural($flag->{is_active});
 
     # values
@@ -277,6 +281,7 @@ sub _update_db_flag {
         name        => $flag->{name},
         description => $flag->{description},
         sortkey     => $flag->{sortkey},
+        is_project  => $flag->{is_project}, 
         is_active   => $flag->{is_active},
     };
 

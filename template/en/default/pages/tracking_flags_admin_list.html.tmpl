@@ -17,6 +17,7 @@
   <th>Name</th>
   <th>Description</th>
   <th>Sort Key</th>
+  <th>Project</th>
   <th>Active</th>
   <th>&nbsp;</th>
 </tr>
@@ -33,6 +34,9 @@
     </td>
     <td [% 'class="disabled"' UNLESS flag.is_active %]>
       [% flag.sortkey FILTER html %]
+    </td>
+    <td [% 'class="disabled"' UNLESS flag.is_active %]>
+      [% flag.is_project ? "Yes" : "No" %]
     </td>
     <td>
       [% flag.is_active ? "Yes" : "No" %]

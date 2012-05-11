@@ -7,16 +7,38 @@
   #%]
 
 [% IF new_tracking_flags.size %]
+  [% tflags = [] %]
+  [% pflags = [] %]
+  [% FOREACH flag = new_tracking_flags %]
+    [% pflags.push(flag) IF flag.is_project %]
+    [% tflags.push(flag) IF !flag.is_project %]
+  [% END %]
+
+  [% PROCESS tracking_flag_section
+     flag_label = 'Project'
+     flag_type  = 'project'
+     flag_list  = pflags
+  %]
+
+  [% PROCESS tracking_flag_section
+     flag_label = 'Tracking'
+     flag_type  = 'tracking'
+     flag_list  = tflags
+  %]
+[% END %]
+
+[% BLOCK tracking_flag_section %]
   <tr>
-    <th class="field_label">Tracking Flags:</th>
+    <th class="field_label">[% flag_label FILTER html %] Flags:</th>
     <td>
-      <span id="tracking_flags_edit_container">
-        (<a href="#" id="tracking_flags_edit_action">edit</a>)
+      <span id="[% flag_type FILTER html %]_flags_edit_container">
+        (<a href="#" id="[% flag_type FILTER html %]_flags_edit_action">edit</a>)
       </span>
-      <div id="tracking_flags_edit_input">
-        <table id="tracking-flags">
-        [% FOREACH flag = new_tracking_flags %]
+      <div id="[% flag_type FILTER html %]_flags_edit_input">
+        <table id="[% flag_type FILTER html %]-flags">
+        [% FOREACH flag = flag_list %]
           <tr id="row_[% flag.name FILTER html %]">
+            <td>&nbsp;</td>
             <td>
               <label for="[% flag.name FILTER html %]">[% flag.description FILTER html %]:</label>
             </td>
@@ -25,13 +47,13 @@
                       name="[% flag.name FILTER html %]">
                 [% FOREACH value = flag.values %]
                   [% IF value.value != flag.set_value.value %]
-                    [% NEXT IF !flag.allowable_values.contains(value.value) %]
+                    [% NEXT IF !flag.can_set_value(value.value,flag.set_value.value) %]
                     [% NEXT IF !value.is_active %]
                   [% END %]
                   <option value="[% value.value FILTER html %]"
                           id="v[% loop.count %]_[% flag.name FILTER html %]"
-                          [% IF flag.set_flag.value == value.value %] selected="selected"[% END %]
-                          [% IF !flag.allowable_values.contains(value.value) %]disabled="disabled"[% END %]>
+                          [% IF flag.bug_flag.value == value.value %] selected="selected"[% END %]
+                          [% IF !flag.can_set_value(value.value,flag.bug_flag.value) %]disabled="disabled"[% END %]>
                           [% value.value FILTER html %]</option>
                 [% END %]
               </select>
@@ -41,9 +63,9 @@
         </table>
       </div>
       <script type="text/javascript">
-        hideEditableField('tracking_flags_edit_container',  
-                          'tracking_flags_edit_input',  
-                          'tracking_flags_edit_action',  
+        hideEditableField('[% flag_type FILTER js %]_flags_edit_container',  
+                          '[% flag_type FILTER js %]_flags_edit_input',  
+                          '[% flag_type FILTER js %]_flags_edit_action',  
                           '',  
                           '');  
       </script>

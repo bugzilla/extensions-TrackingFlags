@@ -92,6 +92,11 @@ sub db_schema_abstract_schema {
                 NOTNULL => 1,
                 DEFAULT => '0', 
             },
+            is_project  => {
+                TYPE    => 'BOOLEAN', 
+                NOTNULL => 1, 
+                DEFAULT => 'FALSE', 
+            }, 
             is_active => {
                 TYPE    => 'BOOLEAN',
                 NOTNULL => 1,
@@ -282,7 +287,7 @@ sub bug_end_of_create {
         foreach my $value (@{$flag->values}) {
             next if $value->value ne $params->{$flag->name};
             next if $value->value eq '---'; # do not insert if value is '---', same as empty
-            if (!grep($_ eq $value->value, @{$flag->allowable_values})) {
+            if (!$flag->can_set_value($value->value)) {
                 ThrowUserError('tracking_flags_change_denied', 
                                { flag => $flag, value => $value });
             }
@@ -312,15 +317,13 @@ sub bug_end_of_update {
     my (@flag_changes);
     foreach my $flag (@$tracking_flags) {
         my $new_value = $params->{$flag->name} || '---';
-        my $old_value = $flag->set_flag ? $flag->set_flag->value : '---';
+        my $old_value = $flag->bug_flag ? $flag->bug_flag->value : '---';
         
         next if $new_value eq $old_value;
 
         if ($new_value ne $old_value) {
             # Do not allow if the user cannot set the old value or the new value
-            if (!grep($_ eq $old_value, @{$flag->allowable_values})
-                || !grep($_ eq $new_value, @{$flag->allowable_values})) 
-            {
+            if (!$flag->can_set_value($new_value, $old_value)) {
                  ThrowUserError('tracking_flags_change_denied',
                                 { flag => $flag, value => $new_value });
             } 
@@ -336,7 +339,7 @@ sub bug_end_of_update {
         my $removed = $change->{'removed'};
 
         if ($added eq '---') {
-            $flag->set_flag->remove_from_db();
+            $flag->bug_flag->remove_from_db();
         }
         elsif ($removed eq '---') {
             Bugzilla::Extension::TrackingFlags::Flag::Bug->create({
@@ -346,8 +349,8 @@ sub bug_end_of_update {
             });
         }
         else {
-            $flag->set_flag->set_value($added);
-            $flag->set_flag->update($timestamp);
+            $flag->bug_flag->set_value($added);
+            $flag->bug_flag->update($timestamp);
         }
 
         $changes->{$flag->name} = [ $removed, $added ];

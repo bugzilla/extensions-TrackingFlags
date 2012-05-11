@@ -33,6 +33,7 @@ use constant DB_COLUMNS => qw(
     name
     description
     sortkey
+    is_project
     is_active
 );
 
@@ -42,6 +43,7 @@ use constant UPDATE_COLUMNS => qw(
     name 
     description
     sortkey
+    is_project
     is_active
 );
 
@@ -49,6 +51,7 @@ use constant VALIDATORS => {
     name        => \&_check_name,
     description => \&_check_description,
     sortkey     => \&_check_sortkey,
+    is_project  => \&Bugzilla::Object::check_boolean, 
     is_active   => \&Bugzilla::Object::check_boolean, 
 
 };
@@ -57,6 +60,7 @@ use constant UPDATE_VALIDATORS => {
     name        => \&_check_name,
     description => \&_check_description,
     sortkey     => \&_check_sortkey,
+    is_project  => \&Bugzilla::Object::check_boolean, 
     is_active   => \&Bugzilla::Object::check_boolean, 
 };
 
@@ -127,9 +131,9 @@ sub match {
     my $bug_id = delete $params->{'bug_id'};
 
     # Retrieve all existing flags for this bug if bug_id given
-    my $set_flags = [];
+    my $bug_flags = [];
     if ($bug_id) {
-        $set_flags = Bugzilla::Extension::TrackingFlags::Flag::Bug->match({ 
+        $bug_flags = Bugzilla::Extension::TrackingFlags::Flag::Bug->match({ 
             bug_id => $bug_id
         });
     }
@@ -154,14 +158,14 @@ sub match {
 
     my %flag_hash = map { $_->id => $_ } @$flags;
 
-    if (@$set_flags) {
-        map { $flag_hash{$_->tracking_flag->id} = $_->tracking_flag } @$set_flags;
+    if (@$bug_flags) {
+        map { $flag_hash{$_->tracking_flag->id} = $_->tracking_flag } @$bug_flags;
     }
 
-    # Prepopulate set_flag if bug_id passed
+    # Prepopulate bug_flag if bug_id passed
     if ($bug_id) {
         foreach my $flag (keys %flag_hash) {
-            $flag_hash{$flag}->set_flag($bug_id);
+            $flag_hash{$flag}->bug_flag($bug_id);
         }
     }
 
@@ -207,6 +211,7 @@ sub _check_sortkey {
 sub set_name        { $_[0]->set('name', $_[1]);        }
 sub set_description { $_[0]->set('description', $_[1]); }
 sub set_sortkey     { $_[0]->set('sortkey', $_[1]);     }
+sub set_is_project  { $_[0]->set('is_project', $_[1]);  }
 sub set_is_active   { $_[0]->set('is_active', $_[1]);   }
 
 ###############################
@@ -216,6 +221,7 @@ sub set_is_active   { $_[0]->set('is_active', $_[1]);   }
 sub name        { return $_[0]->{'name'};        }
 sub description { return $_[0]->{'description'}; }
 sub sortkey     { return $_[0]->{'sortkey'};     }
+sub is_project  { return $_[0]->{'is_project'};  }
 sub is_active   { return $_[0]->{'is_active'};   }
 
 sub values {
@@ -234,31 +240,30 @@ sub visibility {
     return $self->{'visibility'};
 }
 
-sub allowable_values {
-    my ($self, $user) = @_;
+sub can_set_value {
+    my ($self, $new_value, $old_value, $user) = @_;
     $user ||= Bugzilla->user;
-    return $self->{'allowable_values'} if exists $self->{'allowable_values'};
-    $self->{'allowable_values'} = [];
+    my ($new_value_obj, $old_value_obj); 
     foreach my $value (@{$self->values}) {
-        if (!$value->setter_group_id 
-            || $user->in_group($value->setter_group->name))
-        {
-            push(@{$self->{'allowable_values'}}, $value->value);
-        }
+        $new_value_obj = $value if $value->value eq $new_value;
+        $old_value_obj = $value if $value->value eq $old_value;
     }
-    return $self->{'allowable_values'};
+    if ($new_value_obj && $old_value_obj) {
+        return (!$user->in_group($old_value_obj->setter_group->name)
+                || !$user->in_group($new_value_obj->setter_group->name)) ? 0 : 1;
+    }
+    return $user->in_group($new_value_obj->setter_group->name) ? 1 : 0;
 }
 
-sub set_flag {
-    # XXX rename to is_set to avoid confusion with this being a setter?
+sub bug_flag {
     my ($self, $bug_id) = @_;
     $bug_id ||= $self->{'bug_id'};
     $self->{'bug_id'} = $bug_id;
-    $self->{'set_flag'} 
+    $self->{'bug_flag'} 
         ||= Bugzilla::Extension::TrackingFlags::Flag::Bug->new(
             { condition => "tracking_flag_id = ? AND bug_id = ?", 
               values    => [ $self->id, $bug_id ] });
-    return $self->{'set_flag'};
+    return $self->{'bug_flag'};
 }
 
 sub has_values {

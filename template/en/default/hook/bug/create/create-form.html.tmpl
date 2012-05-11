@@ -8,62 +8,85 @@
 
 [% IF new_tracking_flags.size %]
 
-[% tracking_flag_names = [] %]
-[% FOREACH flag = new_tracking_flags %]
-  [% tracking_flag_names.push(flag.name) %]
-[% END %]
-
-<script type="text/javascript">
-<!--
-  var tracking_flags = new Array([% product.components.size %]);
-  var tracking_flag_names = ['[% tracking_flag_names.join("','") FILTER js %]'];
-
-  [% count = 0 %]
-  [% FOREACH c = product.components %]
-    [% NEXT IF NOT c.is_active %]
-    [% tracking_flag_list = [] %]
-    [% FOREACH flag = new_tracking_flags %]
-      [% FOREACH v = flag.visibility %]
-        [% IF v.product_id == product.id 
-              && (!v.component_id.defined || v.component_id == c.id) %]
-          [% tracking_flag_list.push(flag.name) %]
-        [% END %]
-      [% END %]
-    [% END %]
-    tracking_flags[[% count %]] = ['[% tracking_flag_list.join("','") FILTER js %]'];
-    [% count = count + 1 %]
+  [% tracking_flag_names = [] %]
+  [% tflags = [] %]
+  [% pflags = [] %]
+  [% FOREACH flag = new_tracking_flags %]
+    [% tracking_flag_names.push(flag.name) %]
+    [% pflags.push(flag) IF flag.is_project %]
+    [% tflags.push(flag) IF !flag.is_project %]
   [% END %]
 
-  function update_tracking_flags () {
-    var component = document.getElementById('component');
-    // First, we disable all flags.
-    for (var i = 0; i < tracking_flag_names.length; i++) {
-      var flagField = document.getElementById(tracking_flag_names[i]);
-      flagField.disabled = true;
+  <script type="text/javascript">
+  <!--
+    var tracking_flags = new Array([% product.components.size %]);
+    var tracking_flag_names = ['[% tracking_flag_names.join("','") %]'];
+  
+    [% count = 0 %]
+    [% FOREACH c = product.components %]
+      [% NEXT IF NOT c.is_active %]
+      [% tracking_flag_list = [] %]
+      [% FOREACH flag = new_tracking_flags %]
+        [% FOREACH v = flag.visibility %]
+          [% IF v.product_id == product.id 
+                && (!v.component_id.defined || v.component_id == c.id) %]
+            [% tracking_flag_list.push(flag.name) %]
+          [% END %]
+        [% END %]
+      [% END %]
+      [% js_filtered_list = [] %]
+      [% FOREACH flag = tracking_flag_list %]
+        [% js_filtered = flag FILTER js %]
+        [% js_filtered_list.push(js_filtered) %]
+      [% END %]
+      tracking_flags[[% count %]] = ['[% js_filtered_list.join("','") FILTER none %]'];
+      [% count = count + 1 %]
+    [% END %]
+  
+    function update_tracking_flags () {
+      var component = document.getElementById('component');
+      // First, we disable all flags.
+      for (var i = 0; i < tracking_flag_names.length; i++) {
+        var flagField = document.getElementById(tracking_flag_names[i]);
+        flagField.disabled = true;
+      }
+      // Now enable flags available for the selected component.
+      var index = component.selectedIndex;
+      for (var i = 0; i < tracking_flags[index].length; i++) {
+        var flagField = document.getElementById(tracking_flags[index][i]);
+        flagField.disabled = false;
+      }
     }
-    // Now enable flags available for the selected component.
-    var index = component.selectedIndex;
-    for (var i = 0; i < tracking_flags[index].length; i++) {
-      var flagField = document.getElementById(tracking_flags[index][i]);
-      flagField.disabled = false;
-    }
-  }
+  
+    YAHOO.util.Event.onDOMReady(update_tracking_flags);
+    YAHOO.util.Event.addListener("component", "change", update_tracking_flags);
+  -->
+  </script>
 
-  YAHOO.util.Event.onDOMReady(update_tracking_flags);
-  YAHOO.util.Event.addListener("component", "change", update_tracking_flags);
--->
-</script>
+  [% PROCESS tracking_flag_section
+     flag_label = 'Project'
+     flag_type  = 'project'
+     flag_list  = pflags
+  %]
 
+  [% PROCESS tracking_flag_section
+     flag_label = 'Tracking'
+     flag_type  = 'tracking'
+     flag_list  = tflags
+  %]
+[% END %]
+
+[% BLOCK tracking_flag_section %]
   <tbody class="expert_fields">
   <tr>
-    <th class="field_label">Tracking Flags:</th>
+    <th class="field_label">[% flag_label FILTER html %] Flags:</th>
     <td>
-      <span id="tracking_flags_edit_container">
-        (<a href="#" id="tracking_flags_edit_action">edit</a>)
+      <span id="[% flag_type FILTER html %]_flags_edit_container">
+        (<a href="#" id="[% flag_type FILTER html %]_flags_edit_action">edit</a>)
       </span>
-      <div id="tracking_flags_edit_input">
-        <table id="tracking-flags">
-        [% FOREACH flag = new_tracking_flags %]
+      <div id="[% flag_type FILTER html %]_flags_edit_input">
+        <table id="[% flag_type FILTER html %]-flags">
+        [% FOREACH flag = flag_list %]
           <tr id="row_[% flag.name FILTER html %]">
             <td>&nbsp;</td>
             <td>
@@ -73,21 +96,21 @@
               <select id="[% flag.name FILTER html %]" 
                       name="[% flag.name FILTER html %]">
                 [% FOREACH value = flag.values %]
+                  [% NEXT IF !flag.can_set_value(value.value) %]
                   <option value="[% value.value FILTER html %]"
                           id="v[% loop.count %]_[% flag.name FILTER html %]">
                           [% value.value FILTER html %]</option>
                 [% END %]
               </select>
-              <span id="ro_[% flag.name FILTER html %]" class="bz_hidden"></span>
             </td>
           </tr>
         [% END %]
         </table>
       </div>
       <script type="text/javascript">
-        hideEditableField('tracking_flags_edit_container',  
-                          'tracking_flags_edit_input',  
-                          'tracking_flags_edit_action',  
+        hideEditableField('[% flag_type FILTER js %]_flags_edit_container',  
+                          '[% flag_type FILTER js %]_flags_edit_input',  
+                          '[% flag_type FILTER js %]_flags_edit_action',  
                           '',  
                           '');  
       </script>
