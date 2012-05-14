@@ -82,6 +82,20 @@ var selected_components = [
 </tr>
 
 <tr>
+  <th>Type</th>
+  <td>
+    <select name="flag_type" id="flag_type">
+      [% FOREACH type = valid_flag_types %]
+        <option value="[% type FILTER html %]"
+                [% 'selected="selected"' IF flag.type == type %]>
+          [% type FILTER html %]</option>
+      [% END %]
+    </select>
+  </td>
+  <td class="help">flag type used for grouping</td>
+</tr>
+
+<tr>
   <th>Sort Key</th>
   <td>
     <input name="flag_sort" id="flag_sort" value="[% flag.sortkey FILTER html %]">
@@ -90,11 +104,6 @@ var selected_components = [
       | <a class="txt_icon" href="#" onclick="inc_field('flag_sort', -5);return false">-5</a>
     ]
   </td>
-</tr>
-
-<tr>
-  <th>Project</th>
-  <td><input type="checkbox" name="flag_project" id="flag_project" value="1" [% "checked" IF flag.is_project %]></td>
 </tr>
 
 <tr>

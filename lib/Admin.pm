@@ -17,6 +17,7 @@ use Bugzilla::Group;
 use Bugzilla::Product;
 use Bugzilla::Util qw(trim detaint_natural);
 
+use Bugzilla::Extension::TrackingFlags::Constants;
 use Bugzilla::Extension::TrackingFlags::Flag;
 use Bugzilla::Extension::TrackingFlags::Flag::Value;
 use Bugzilla::Extension::TrackingFlags::Flag::Visibility;
@@ -44,9 +45,10 @@ sub admin_edit {
     my ($vars, $page) = @_;
     my $input = Bugzilla->input_params;
 
-    $vars->{groups}     = _groups_to_json();
-    $vars->{mode}       = $input->{mode} || 'new';
-    $vars->{flag_id}    = $input->{flag_id} || 0;
+    $vars->{groups}           = _groups_to_json();
+    $vars->{mode}             = $input->{mode} || 'new';
+    $vars->{flag_id}          = $input->{flag_id} || 0;
+    $vars->{valid_flag_types} = [ VALID_FLAG_TYPES ];
 
     if ($input->{delete}) {
         my $flag = Bugzilla::Extension::TrackingFlags::Flag->new($vars->{flag_id})
@@ -100,7 +102,7 @@ sub admin_edit {
                 $flag->set_description("$1" . ($2 + 1));
             }
             $flag->set_sortkey(_next_unique_sortkey($flag->sortkey));
-            $flag->set_is_project(0);
+            $flag->set_type($flag->type);
             # always default new flags as active, even when copying an inactive one
             $flag->set_is_active(1);
 
@@ -113,7 +115,7 @@ sub admin_edit {
             $vars->{mode} = 'new';
             $vars->{flag} = {
                 sortkey    => 0,
-                is_project => 0, 
+                type       => 'blocking', 
                 is_active  => 1, 
             };
             $vars->{values} = _flag_values_to_json([
@@ -140,12 +142,11 @@ sub _load_from_input {
         name        => trim($input->{flag_name} || ''),
         description => trim($input->{flag_desc} || ''),
         sortkey     => $input->{flag_sort} || 0,
-        is_project  => $input->{flag_project} ? 1 : 0, 
+        type        => trim($input->{flag_type} || ''), 
         is_active   => $input->{flag_active} ? 1 : 0,
     };
     detaint_natural($flag->{id});
     detaint_natural($flag->{sortkey});
-    detaint_natural($flag->{is_project});
     detaint_natural($flag->{is_active});
 
     # values
@@ -281,7 +282,7 @@ sub _update_db_flag {
         name        => $flag->{name},
         description => $flag->{description},
         sortkey     => $flag->{sortkey},
-        is_project  => $flag->{is_project}, 
+        type        => $flag->{type}, 
         is_active   => $flag->{is_active},
     };
 

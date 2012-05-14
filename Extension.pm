@@ -87,16 +87,15 @@ sub db_schema_abstract_schema {
                 TYPE    => 'varchar(64)',
                 NOTNULL => 1,
             },
+            type => {
+                TYPE    => 'varchar(64)',
+                NOTNULL => 1,
+            }, 
             sortkey => {
                 TYPE    => 'INT2',
                 NOTNULL => 1,
                 DEFAULT => '0', 
             },
-            is_project  => {
-                TYPE    => 'BOOLEAN', 
-                NOTNULL => 1, 
-                DEFAULT => 'FALSE', 
-            }, 
             is_active => {
                 TYPE    => 'BOOLEAN',
                 NOTNULL => 1,
@@ -213,6 +212,123 @@ sub db_schema_abstract_schema {
         ],
     };
     # TODO indices
+}
+
+sub install_update_db {
+    my $dbh = Bugzilla->dbh;
+
+    return;
+
+    # Migrate old custom field based tracking flags to the new
+    # table based tracking flags
+
+    # XXX Better way than hard coded list? Maybe using
+    # the regexes from extension/BMO/lib/Data.pm?
+
+    my @flag_names = qw(
+        cf_blocking_fennec
+        cf_blocking_191
+        cf_status_191
+        cf_status_192
+        cf_blocking_20
+        cf_blocking_thunderbird30
+        cf_status_thunderbird30
+        cf_blocking_192 
+        cf_blocking_thunderbird31
+        cf_status_thunderbird31 
+        cf_status_20
+        cf_status_seamonkey21
+        cf_blocking_seamonkey21 
+        cf_blocking_thunderbird32 
+        cf_status_thunderbird32 
+        cf_blocking_thunderbird33
+        cf_status_thunderbird33 
+        cf_blocking_fx
+        cf_tracking_firefox5
+        cf_status_firefox5
+        cf_tracking_firefox6 
+        cf_colo_site
+        cf_tracking_firefox7
+        cf_status_firefox6 
+        cf_status_firefox7
+        cf_tracking_thunderbird6
+        cf_tracking_thunderbird7
+        cf_status_thunderbird6
+        cf_status_thunderbird7 
+        cf_tracking_seamonkey22
+        cf_tracking_seamonkey23
+        cf_tracking_seamonkey24
+        cf_tracking_firefox8
+        cf_status_firefox8
+        cf_tracking_seamonkey25 
+        cf_status_seamonkey22  
+        cf_status_seamonkey23 
+        cf_status_seamonkey24
+        cf_status_seamonkey25
+        cf_tracking_thunderbird8
+        cf_status_thunderbird8
+        cf_tracking_firefox9
+        cf_status_firefox9
+        cf_tracking_seamonkey26
+        cf_status_seamonkey26
+        cf_tracking_thunderbird9
+        cf_status_thunderbird9
+        cf_tracking_firefox10
+        cf_tracking_thunderbird10
+        cf_status_thunderbird10
+        cf_status_firefox10
+        cf_tracking_seamonkey27
+        cf_status_seamonkey27 
+        cf_tracking_firefox11
+        cf_status_firefox11 
+        cf_tracking_thunderbird11
+        cf_status_thunderbird11
+        cf_tracking_seamonkey28
+        cf_status_seamonkey28
+        cf_tracking_firefox12
+        cf_status_firefox12
+        cf_tracking_thunderbird12
+        cf_status_thunderbird12
+        cf_tracking_seamonkey29
+        cf_status_seamonkey29 
+        cf_tracking_esr10 
+        cf_status_esr10
+        cf_tracking_firefox13
+        cf_status_firefox13
+        cf_tracking_thunderbird13
+        cf_status_thunderbird13
+        cf_tracking_seamonkey210
+        cf_status_seamonkey210
+        cf_tracking_thunderbird_esr10
+        cf_status_thunderbird_esr10
+        cf_blocking_fennec10
+        cf_blocking_kilimanjaro       
+    );
+
+    foreach my $flag_name (@flag_names) {
+        if ($dbh->bz_column_info('bugs', $flag_name)) {
+            # Gather info about the old flag using Bugzilla::Field
+            my $old_flag = Bugzilla::Field->new({ name => $flag_name });
+            $old_flag || die "Could not load old flag data: $!";
+
+            # Create the new tracking flag if not exists
+            my $new_flag = Bugzilla::Extension::Tracking::Flags::Flag->new({ name => $flag_name });
+            if (!$new_flag) {
+                $new_flag = Bugzilla::Extension::Tracking::Flags::Flag->create({
+                    name        => $flag_name,
+                    description => $old_flag->description,
+                });
+            }
+
+
+
+            # Update fielddefs for new tracking flag format
+            $dbh->do("UPDATE fielddefs SET type = 1, custom = 2 WHERE name = ?", undef, $flag_name);
+
+            # And last drop the old custom field
+            #$dbh->bz_drop_column('bugs', $flag_name);
+        }
+    }
 }
 
 sub buglist_columns {

@@ -16,6 +16,7 @@ use Bugzilla::Error;
 use Bugzilla::Constants;
 use Bugzilla::Util qw(detaint_natural);
 
+use Bugzilla::Extension::TrackingFlags::Constants;
 use Bugzilla::Extension::TrackingFlags::Flag::Bug;
 use Bugzilla::Extension::TrackingFlags::Flag::Value;
 use Bugzilla::Extension::TrackingFlags::Flag::Visibility;
@@ -32,8 +33,8 @@ use constant DB_COLUMNS => qw(
     id
     name
     description
+    type
     sortkey
-    is_project
     is_active
 );
 
@@ -42,16 +43,16 @@ use constant LIST_ORDER => 'sortkey';
 use constant UPDATE_COLUMNS => qw(
     name 
     description
+    type
     sortkey
-    is_project
     is_active
 );
 
 use constant VALIDATORS => {
     name        => \&_check_name,
     description => \&_check_description,
+    type        => \&_check_type, 
     sortkey     => \&_check_sortkey,
-    is_project  => \&Bugzilla::Object::check_boolean, 
     is_active   => \&Bugzilla::Object::check_boolean, 
 
 };
@@ -59,8 +60,8 @@ use constant VALIDATORS => {
 use constant UPDATE_VALIDATORS => {
     name        => \&_check_name,
     description => \&_check_description,
+    type        => \&_check_type, 
     sortkey     => \&_check_sortkey,
-    is_project  => \&Bugzilla::Object::check_boolean, 
     is_active   => \&Bugzilla::Object::check_boolean, 
 };
 
@@ -115,9 +116,9 @@ sub update {
     my $changes = $self->SUPER::update(@_);
     
     # Update the fielddefs entry
-    $dbh->do("UPDATE fielddefs SET name=? WHERE name=?",
+    $dbh->do("UPDATE fielddefs SET name = ?, description = ? WHERE name = ?",
              undef,
-             $self->name, $old_self->name);
+             $self->name, $self->description, $old_self->name);
 
     $dbh->bz_commit_transaction();
 
@@ -197,6 +198,14 @@ sub _check_description {
     return $description;
 }
 
+sub _check_type {
+    my ($invocant, $type) = @_;
+    $type || ThrowCodeError( 'param_required', { param => 'type' } );
+    grep($_ eq $type, VALID_FLAG_TYPES) 
+        || ThrowUserError('tracking_flags_invalid_flag_type', { type => $type });
+    return $type;
+}
+
 sub _check_sortkey {
     my ($invocant, $sortkey) = @_;
     detaint_natural($sortkey)
@@ -210,8 +219,8 @@ sub _check_sortkey {
 
 sub set_name        { $_[0]->set('name', $_[1]);        }
 sub set_description { $_[0]->set('description', $_[1]); }
+sub set_type        { $_[0]->set('type', $_[1]);        }
 sub set_sortkey     { $_[0]->set('sortkey', $_[1]);     }
-sub set_is_project  { $_[0]->set('is_project', $_[1]);  }
 sub set_is_active   { $_[0]->set('is_active', $_[1]);   }
 
 ###############################
@@ -220,8 +229,8 @@ sub set_is_active   { $_[0]->set('is_active', $_[1]);   }
 
 sub name        { return $_[0]->{'name'};        }
 sub description { return $_[0]->{'description'}; }
+sub type        { return $_[0]->{'type'};        }
 sub sortkey     { return $_[0]->{'sortkey'};     }
-sub is_project  { return $_[0]->{'is_project'};  }
 sub is_active   { return $_[0]->{'is_active'};   }
 
 sub values {

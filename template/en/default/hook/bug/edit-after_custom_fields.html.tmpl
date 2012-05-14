@@ -10,21 +10,25 @@
   [% tflags = [] %]
   [% pflags = [] %]
   [% FOREACH flag = new_tracking_flags %]
-    [% pflags.push(flag) IF flag.is_project %]
-    [% tflags.push(flag) IF !flag.is_project %]
+    [% pflags.push(flag) IF flag.type == 'project' %]
+    [% tflags.push(flag) IF flag.type != 'project' %]
   [% END %]
 
-  [% PROCESS tracking_flag_section
-     flag_label = 'Project'
-     flag_type  = 'project'
-     flag_list  = pflags
-  %]
+  [% IF pflags.size %]
+    [% PROCESS tracking_flag_section
+       flag_label = 'Project'
+       flag_type  = 'project'
+       flag_list  = pflags
+    %]
+  [% END %]
 
-  [% PROCESS tracking_flag_section
-     flag_label = 'Tracking'
-     flag_type  = 'tracking'
-     flag_list  = tflags
-  %]
+  [% IF tflags.size %]
+    [% PROCESS tracking_flag_section
+       flag_label = 'Tracking'
+       flag_type  = 'tracking'
+       flag_list  = tflags
+    %]
+  [% END %]
 [% END %]
 
 [% BLOCK tracking_flag_section %]
