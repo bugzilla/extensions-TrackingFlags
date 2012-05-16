@@ -17,6 +17,7 @@ Event.onDOMReady(function() {
 
     Event.addListener('flag_name', 'change', change_flag_name, Dom.get('flag_name'));
     Event.addListener('flag_desc', 'change', change_string_value, Dom.get('flag_desc'));
+    Event.addListener('flag_type', 'change', change_select_value, Dom.get('flag_type'));
     Event.addListener('flag_sort', 'change', change_int_value, Dom.get('flag_sort'));
 
     Event.addListener('product', 'change', function() {
@@ -331,6 +332,7 @@ function tag_missing_values() {
     if (el.id.match(/^(flag|value)_/))
       tag_missing_value(el);
   }
+  tag_missing_value(Dom.get('flag_type'));
 }
 
 function tag_missing_value(el) {

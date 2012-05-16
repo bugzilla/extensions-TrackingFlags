@@ -115,8 +115,7 @@ sub admin_edit {
             $vars->{mode} = 'new';
             $vars->{flag} = {
                 sortkey    => 0,
-                type       => 'blocking', 
-                is_active  => 1, 
+                is_active  => 1,
             };
             $vars->{values} = _flag_values_to_json([
                 {
@@ -142,7 +141,7 @@ sub _load_from_input {
         name        => trim($input->{flag_name} || ''),
         description => trim($input->{flag_desc} || ''),
         sortkey     => $input->{flag_sort} || 0,
-        type        => trim($input->{flag_type} || ''), 
+        type        => trim($input->{flag_type} || ''),
         is_active   => $input->{flag_active} ? 1 : 0,
     };
     detaint_natural($flag->{id});
@@ -282,7 +281,7 @@ sub _update_db_flag {
         name        => $flag->{name},
         description => $flag->{description},
         sortkey     => $flag->{sortkey},
-        type        => $flag->{type}, 
+        type        => $flag->{type},
         is_active   => $flag->{is_active},
     };
 

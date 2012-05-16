@@ -85,10 +85,9 @@ var selected_components = [
   <th>Type</th>
   <td>
     <select name="flag_type" id="flag_type">
+      <option value=""></option>
       [% FOREACH type = valid_flag_types %]
-        <option value="[% type FILTER html %]"
-                [% 'selected="selected"' IF flag.type == type %]>
-          [% type FILTER html %]</option>
+        <option value="[% type FILTER html %]" [% "selected" IF flag.type == type %]>[% type FILTER html %]</option>
       [% END %]
     </select>
   </td>
