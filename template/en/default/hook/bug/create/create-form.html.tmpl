@@ -7,14 +7,14 @@
   #%]
 
 [% IF new_tracking_flags.size %]
-
   [% tracking_flag_names = [] %]
-  [% tflags = [] %]
-  [% pflags = [] %]
-  [% FOREACH flag = new_tracking_flags %]
-    [% tracking_flag_names.push(flag.name) %]
-    [% pflags.push(flag) IF flag.type == 'project' %]
-    [% tflags.push(flag) IF flag.type != 'project' %]
+  [% FOREACH type = tracking_flag_types %]
+    [% type.flags = [] %]
+    [% type.name %]
+    [% FOREACH flag = new_tracking_flags %]
+      [% tracking_flag_names.push(flag.name) %]
+      [% type.flags.push(flag) IF flag.type == type.name %]
+    [% END %]
   [% END %]
 
   <script type="text/javascript">
@@ -63,27 +63,20 @@
   -->
   </script>
 
-  [% IF pflags.size %]
-    [% PROCESS tracking_flag_section
-       flag_label = 'Project'
-       flag_type  = 'project'
-       flag_list  = pflags
-    %]
-  [% END %]
-
-  [% IF tflags.size %]
-    [% PROCESS tracking_flag_section
-       flag_label = 'Tracking'
-       flag_type  = 'tracking'
-       flag_list  = tflags
-    %]
+  [% FOREACH type = tracking_flag_types %]
+    [% IF type.flags.size %]
+      [% PROCESS tracking_flag_section
+         flag_type  = type.name
+         flag_list  = type.flags
+      %]
+    [% END %]
   [% END %]
 [% END %]
 
 [% BLOCK tracking_flag_section %]
   <tbody class="expert_fields">
   <tr>
-    <th class="field_label">[% flag_label FILTER html %] Flags:</th>
+    <th class="field_label">[% flag_type FILTER ucfirst FILTER html %] Flags:</th>
     <td>
       <span id="[% flag_type FILTER html %]_flags_edit_container">
         (<a href="#" id="[% flag_type FILTER html %]_flags_edit_action">edit</a>)

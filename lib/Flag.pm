@@ -201,7 +201,7 @@ sub _check_description {
 sub _check_type {
     my ($invocant, $type) = @_;
     $type || ThrowCodeError( 'param_required', { param => 'type' } );
-    grep($_ eq $type, VALID_FLAG_TYPES) 
+    grep($_->{name} eq $type, FLAG_TYPES) 
         || ThrowUserError('tracking_flags_invalid_flag_type', { type => $type });
     return $type;
 }

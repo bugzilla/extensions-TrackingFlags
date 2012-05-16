@@ -45,10 +45,10 @@ sub admin_edit {
     my ($vars, $page) = @_;
     my $input = Bugzilla->input_params;
 
-    $vars->{groups}           = _groups_to_json();
-    $vars->{mode}             = $input->{mode} || 'new';
-    $vars->{flag_id}          = $input->{flag_id} || 0;
-    $vars->{valid_flag_types} = [ VALID_FLAG_TYPES ];
+    $vars->{groups}  = _groups_to_json();
+    $vars->{mode}    = $input->{mode} || 'new';
+    $vars->{flag_id} = $input->{flag_id} || 0;
+    $vars->{tracking_flag_types} = [ sort { $a->{sortkey} <=> $b->{sortkey} } FLAG_TYPES ];
 
     if ($input->{delete}) {
         my $flag = Bugzilla::Extension::TrackingFlags::Flag->new($vars->{flag_id})

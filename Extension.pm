@@ -11,6 +11,7 @@ use strict;
 
 use base qw(Bugzilla::Extension);
 
+use Bugzilla::Extension::TrackingFlags::Constants;
 use Bugzilla::Extension::TrackingFlags::Flag;
 use Bugzilla::Extension::TrackingFlags::Flag::Bug;
 use Bugzilla::Extension::TrackingFlags::Flag::Value;
@@ -63,6 +64,8 @@ sub template_before_process {
             product   => $vars->{'product'}->name,
             is_active => 1,
         });
+
+        $vars->{tracking_flag_types} = [ sort { $a->{sortkey} <=> $b->{sortkey} } FLAG_TYPES ];
     }
     
     if ($file eq 'bug/edit.html.tmpl') {
@@ -74,7 +77,9 @@ sub template_before_process {
             component   => $bug->component, 
             bug_id      => $bug->id,
             is_active   => 1, 
-        });  
+        });
+
+        $vars->{tracking_flag_types} = [ sort { $a->{sortkey} <=> $b->{sortkey} } FLAG_TYPES ];
     }
 }
 

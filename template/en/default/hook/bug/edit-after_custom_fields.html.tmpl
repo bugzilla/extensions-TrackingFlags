@@ -7,39 +7,30 @@
   #%]
 
 [% IF new_tracking_flags.size %]
-  [% tflags = [] %]
-  [% pflags = [] %]
-  [% FOREACH flag = new_tracking_flags %]
-    [% pflags.push(flag) IF flag.type == 'project' %]
-    [% tflags.push(flag) IF flag.type != 'project' %]
-  [% END %]
-
-  [% IF pflags.size %]
-    [% PROCESS tracking_flag_section
-       flag_label = 'Project'
-       flag_type  = 'project'
-       flag_list  = pflags
-    %]
-  [% END %]
-
-  [% IF tflags.size %]
-    [% PROCESS tracking_flag_section
-       flag_label = 'Tracking'
-       flag_type  = 'tracking'
-       flag_list  = tflags
-    %]
+  [% FOREACH type = tracking_flag_types %]
+    [% flags = [] %]
+    [% FOREACH flag = new_tracking_flags %]
+      [% flags.push(flag) IF flag.type == type.name %]
+    [% END %]
+    
+    [% IF flags.size %]
+      [% PROCESS tracking_flag_section
+         flag_type  = type.name
+         flag_list  = flags
+      %]
+    [% END %]
   [% END %]
 [% END %]
 
 [% BLOCK tracking_flag_section %]
   <tr>
-    <th class="field_label">[% flag_label FILTER html %] Flags:</th>
+    <th class="field_label">[% flag_type FILTER ucfirst FILTER html %] Flags:</th>
     <td>
       <span id="[% flag_type FILTER html %]_flags_edit_container">
         (<a href="#" id="[% flag_type FILTER html %]_flags_edit_action">edit</a>)
       </span>
       <div id="[% flag_type FILTER html %]_flags_edit_input">
-        <table id="[% flag_type FILTER html %]-flags">
+        <table id="tracking-flags">
         [% FOREACH flag = flag_list %]
           <tr id="row_[% flag.name FILTER html %]">
             <td>&nbsp;</td>
