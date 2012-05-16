@@ -11,12 +11,20 @@ use strict;
 
 use base qw(Bugzilla::Extension);
 
-use Bugzilla::Extension::TrackingFlags::Flag::Bug;
 use Bugzilla::Extension::TrackingFlags::Flag;
+use Bugzilla::Extension::TrackingFlags::Flag::Bug;
+use Bugzilla::Extension::TrackingFlags::Flag::Value;
+use Bugzilla::Extension::TrackingFlags::Flag::Visibility;
 use Bugzilla::Extension::TrackingFlags::Admin;
 
 use Bugzilla::Bug;
+use Bugzilla::Constants;
+use Bugzilla::Field;
+use Bugzilla::Product;
+use Bugzilla::Component;
 use Bugzilla::Error;
+use Bugzilla::Extension::BMO::Data;
+use Bugzilla::Install::Util qw(indicate_progress);
 
 use Data::Dumper;
 
@@ -217,118 +225,127 @@ sub db_schema_abstract_schema {
 sub install_update_db {
     my $dbh = Bugzilla->dbh;
 
-    return;
+    return; # XXX remove this to run the migration
 
     # Migrate old custom field based tracking flags to the new
     # table based tracking flags
 
-    # XXX Better way than hard coded list? Maybe using
-    # the regexes from extension/BMO/lib/Data.pm?
+    my %bmo_tracking_flags 
+        = %{$Bugzilla::Extension::BMO::Data::cf_visible_in_products};
+    my @bmo_project_flags
+        = @{$Bugzilla::Extension::BMO::Data::cf_project_flags};
 
-    my @flag_names = qw(
-        cf_blocking_fennec
-        cf_blocking_191
-        cf_status_191
-        cf_status_192
-        cf_blocking_20
-        cf_blocking_thunderbird30
-        cf_status_thunderbird30
-        cf_blocking_192 
-        cf_blocking_thunderbird31
-        cf_status_thunderbird31 
-        cf_status_20
-        cf_status_seamonkey21
-        cf_blocking_seamonkey21 
-        cf_blocking_thunderbird32 
-        cf_status_thunderbird32 
-        cf_blocking_thunderbird33
-        cf_status_thunderbird33 
-        cf_blocking_fx
-        cf_tracking_firefox5
-        cf_status_firefox5
-        cf_tracking_firefox6 
-        cf_colo_site
-        cf_tracking_firefox7
-        cf_status_firefox6 
-        cf_status_firefox7
-        cf_tracking_thunderbird6
-        cf_tracking_thunderbird7
-        cf_status_thunderbird6
-        cf_status_thunderbird7 
-        cf_tracking_seamonkey22
-        cf_tracking_seamonkey23
-        cf_tracking_seamonkey24
-        cf_tracking_firefox8
-        cf_status_firefox8
-        cf_tracking_seamonkey25 
-        cf_status_seamonkey22  
-        cf_status_seamonkey23 
-        cf_status_seamonkey24
-        cf_status_seamonkey25
-        cf_tracking_thunderbird8
-        cf_status_thunderbird8
-        cf_tracking_firefox9
-        cf_status_firefox9
-        cf_tracking_seamonkey26
-        cf_status_seamonkey26
-        cf_tracking_thunderbird9
-        cf_status_thunderbird9
-        cf_tracking_firefox10
-        cf_tracking_thunderbird10
-        cf_status_thunderbird10
-        cf_status_firefox10
-        cf_tracking_seamonkey27
-        cf_status_seamonkey27 
-        cf_tracking_firefox11
-        cf_status_firefox11 
-        cf_tracking_thunderbird11
-        cf_status_thunderbird11
-        cf_tracking_seamonkey28
-        cf_status_seamonkey28
-        cf_tracking_firefox12
-        cf_status_firefox12
-        cf_tracking_thunderbird12
-        cf_status_thunderbird12
-        cf_tracking_seamonkey29
-        cf_status_seamonkey29 
-        cf_tracking_esr10 
-        cf_status_esr10
-        cf_tracking_firefox13
-        cf_status_firefox13
-        cf_tracking_thunderbird13
-        cf_status_thunderbird13
-        cf_tracking_seamonkey210
-        cf_status_seamonkey210
-        cf_tracking_thunderbird_esr10
-        cf_status_thunderbird_esr10
-        cf_blocking_fennec10
-        cf_blocking_kilimanjaro       
-    );
+    my %product_cache;
+    my %component_cache;
 
-    foreach my $flag_name (@flag_names) {
-        if ($dbh->bz_column_info('bugs', $flag_name)) {
-            # Gather info about the old flag using Bugzilla::Field
-            my $old_flag = Bugzilla::Field->new({ name => $flag_name });
-            $old_flag || die "Could not load old flag data: $!";
+    $dbh->bz_start_transaction();
 
-            # Create the new tracking flag if not exists
-            my $new_flag = Bugzilla::Extension::Tracking::Flags::Flag->new({ name => $flag_name });
-            if (!$new_flag) {
-                $new_flag = Bugzilla::Extension::Tracking::Flags::Flag->create({
-                    name        => $flag_name,
-                    description => $old_flag->description,
-                });
+    my $fields = Bugzilla::Field->match({ custom => 1, 
+                                          type   => FIELD_TYPE_SINGLE_SELECT });
+    LAST: foreach my $field (@$fields) {
+        foreach my $field_re (keys %bmo_tracking_flags) {
+            if ($field->name =~ $field_re) {
+                # Create the new tracking flag if not exists
+                my $new_flag 
+                    = Bugzilla::Extension::TrackingFlags::Flag->new({ name => $field->name });
+                if (!$new_flag) {
+                    print "Migrating custom tracking field " . $field->name . "\n";
+
+                    my $new_flag_name = $field->name . "_new"; # Temporary name til we delete the old
+                    my $type = grep($field->name =~ $_, @bmo_project_flags) ? 'project' : 'blocking';
+
+                    $new_flag = Bugzilla::Extension::TrackingFlags::Flag->create({
+                        name        => $new_flag_name,
+                        description => $field->description,
+                        type        => $type, 
+                    });
+
+                    # Create product/component visibility
+                    my $visibility = $new_flag->visibility;
+                    foreach my $prod_name (keys %{ $bmo_tracking_flags{$field_re} }) {
+                        $product_cache{$prod_name} ||= Bugzilla::Product->new({ name => $prod_name });
+                        $product_cache{$prod_name} || next; # die "No such product $prod_name\n";
+                        my $components = $bmo_tracking_flags{$field_re}{$prod_name};
+
+                        # If no components specified then we do Product/__any__
+                        # otherwise, we enter an entry for each Product/Component
+                        if (!@$components) {
+                            Bugzilla::Extension::TrackingFlags::Flag::Visibility->create({
+                                tracking_flag_id => $new_flag->id,
+                                product_id       => $product_cache{$prod_name}->id, 
+                                component_id     => undef
+                            });
+                        }
+                        else {
+                            foreach my $comp_name (@$components) {
+                                $component_cache{"${prod_name}:${comp_name}"} 
+                                    ||= Bugzilla::Component->new({ name    => $comp_name, 
+                                                                   product => $product_cache{$prod_name} });
+                                $component_cache{"${prod_name}:${comp_name}"}
+                                    || die "No such product $prod_name and component $comp_name\n";
+                                Bugzilla::Extension::TrackingFlags::Flag::Visibility->create({
+                                    tracking_flag_id => $new_flag->id,
+                                    product_id       => $product_cache{$prod_name}->id, 
+                                    component_id     => $component_cache{"${prod_name}:${comp_name}"}->id, 
+                                });
+                            }
+                        }
+                    }
+    
+                    # Create values
+                    # XXX Need to get setter/requester permissions from Data.pm
+                    my $group = Bugzilla::Group->new({ name => 'editbugs' });
+                    foreach my $old_value (@{ $field->legal_values }) {
+                        Bugzilla::Extension::TrackingFlags::Flag::Value->create({
+                            tracking_flag_id => $new_flag->id, 
+                            value            => $old_value->name,
+                            setter_group_id  => $group->id,  
+                        });
+                    }
+            
+                    # Migrate bug values
+                    my $bugs = $dbh->selectall_arrayref("SELECT bug_id, " . $field->name . " 
+                                                           FROM bugs 
+                                                          WHERE " . $field->name . " != '---'
+                                                       ORDER BY bug_id");
+                    my $count = 1;
+                    my $total = scalar @$bugs;
+                    foreach my $row (@$bugs) {
+                        my ($id, $value) = @$row;
+                        indicate_progress({ current => $count++, total => $total, every => 25 });
+                        Bugzilla::Extension::TrackingFlags::Flag::Bug->create({
+                            tracking_flag_id => $new_flag->id, 
+                            bug_id           => $id, 
+                            value            => $value, 
+
+                        });
+                    }
+
+                    # Update bugs_activity
+                    my $new_field = Bugzilla::Field->new({ name => $new_flag->name });
+                    $dbh->do("UPDATE bugs_activity SET fieldid = ? WHERE fieldid = ?",  
+                             undef, $new_field->id, $field->id);
+
+                    # Set all old custom field values to '---'
+                    $dbh->do("UPDATE bugs SET " . $field->name . " = '---'");
+    
+                    # Remove the old custom field
+                    $field->set_obsolete(1);
+                    $field->remove_from_db();
+                 
+                    # Rename the new flag
+                    $dbh->do("UPDATE fielddefs SET name = ? WHERE name = ?",
+                             undef, $field->name, $new_flag_name);
+                    $new_flag->set_name($field->name);
+                    $new_flag->update;
+
+                    last LAST; # XXX comment this if you want to do more than one
+                }
             }
-
-
-
-            # Update fielddefs for new tracking flag format
-            $dbh->do("UPDATE fielddefs SET type = 1, custom = 2 WHERE name = ?", undef, $flag_name);
-
-            # And last drop the old custom field
-            #$dbh->bz_drop_column('bugs', $flag_name);
         }
     }
+
+    $dbh->bz_commit_transaction();
 }
 
 sub buglist_columns {
