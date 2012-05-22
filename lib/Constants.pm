@@ -7,19 +7,17 @@ our @EXPORT = qw(
     FLAG_TYPES
 );
 
-use constant FLAG_TYPES => (
+use constant FLAG_TYPES => [
     {
-        name    => 'blocking', 
-        sortkey => 30,
+        name        => 'tracking',
+        description => 'Tracking Flags',
+        collapsed   => 1,
     },
     {
-        name    => 'status', 
-        sortkey => 20, 
-    }, 
-    {
-        name    => 'project', 
-        sortkey => 10,
+        name        => 'project',
+        description => 'Project Flags',
+        collapsed   => 0,
     },
-);
+];
 
 1;

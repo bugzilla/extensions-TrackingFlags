@@ -48,7 +48,7 @@ sub admin_edit {
     $vars->{groups}  = _groups_to_json();
     $vars->{mode}    = $input->{mode} || 'new';
     $vars->{flag_id} = $input->{flag_id} || 0;
-    $vars->{tracking_flag_types} = [ sort { $a->{sortkey} <=> $b->{sortkey} } FLAG_TYPES ];
+    $vars->{tracking_flag_types} = FLAG_TYPES;
 
     if ($input->{delete}) {
         my $flag = Bugzilla::Extension::TrackingFlags::Flag->new($vars->{flag_id})

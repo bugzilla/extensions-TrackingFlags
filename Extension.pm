@@ -65,9 +65,9 @@ sub template_before_process {
             is_active => 1,
         });
 
-        $vars->{tracking_flag_types} = [ sort { $a->{sortkey} <=> $b->{sortkey} } FLAG_TYPES ];
+        $vars->{tracking_flag_types} = FLAG_TYPES;
     }
-    
+
     if ($file eq 'bug/edit.html.tmpl') {
         # note: bug/edit.html.tmpl doesn't support multiple bugs
         my $bug = exists $vars->{'bugs'} ? $vars->{'bugs'}[0] : $vars->{'bug'};
@@ -79,7 +79,7 @@ sub template_before_process {
             is_active   => 1, 
         });
 
-        $vars->{tracking_flag_types} = [ sort { $a->{sortkey} <=> $b->{sortkey} } FLAG_TYPES ];
+        $vars->{tracking_flag_types} = FLAG_TYPES;
     }
 }
 
@@ -256,11 +256,10 @@ sub install_update_db {
 
                     my $new_flag_name = $field->name . "_new"; # Temporary name til we delete the old
 
-                    my $type = "blocking";
-                    $type = 'status' if $field->name =~ /^cf_status_/;
-                    if (grep($field->name =~ $_, @bmo_project_flags)) {
-                        $type = 'project';
-                    }
+                    my $type = 
+                        grep($field->name =~ $_, @bmo_project_flags)
+                        ? 'tracking'
+                        : 'project';
 
                     $new_flag = Bugzilla::Extension::TrackingFlags::Flag->create({
                         name        => $new_flag_name,
@@ -279,18 +278,18 @@ sub install_update_db {
 
                     # Set all old custom field values to '---'
                     $dbh->do("UPDATE bugs SET " . $field->name . " = '---'");
-    
+
                     # Remove the old custom field
                     $field->set_obsolete(1);
                     $field->remove_from_db();
-                 
+
                     # Rename the new flag
                     $dbh->do("UPDATE fielddefs SET name = ? WHERE name = ?",
                              undef, $field->name, $new_flag_name);
                     $new_flag->set_name($field->name);
                     $new_flag->update;
 
-                    last LAST; # XXX comment this if you want to do more than one
+                    # last LAST; # XXX comment this if you want to do more than one
                 }
             }
         }

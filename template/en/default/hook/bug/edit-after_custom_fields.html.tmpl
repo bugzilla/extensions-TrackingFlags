@@ -12,11 +12,11 @@
     [% FOREACH flag = new_tracking_flags %]
       [% flags.push(flag) IF flag.type == type.name %]
     [% END %]
-    
+
     [% IF flags.size %]
       [% PROCESS tracking_flag_section
-         flag_type  = type.name
-         flag_list  = flags
+         flag_type = type
+         flag_list = flags
       %]
     [% END %]
   [% END %]
@@ -24,13 +24,15 @@
 
 [% BLOCK tracking_flag_section %]
   <tr>
-    <th class="field_label">[% flag_type FILTER ucfirst FILTER html %] Flags:</th>
+    <th class="field_label">[% flag_type.description FILTER html %]:</th>
     <td>
-      <span id="[% flag_type FILTER html %]_flags_edit_container">
-        (<a href="#" id="[% flag_type FILTER html %]_flags_edit_action">edit</a>)
-      </span>
-      <div id="[% flag_type FILTER html %]_flags_edit_input">
-        <table id="tracking-flags">
+      [% IF flag_type.collapsed %]
+        <span id="[% flag_type.name FILTER html %]_flags_edit_container">
+          (<a href="#" id="[% flag_type.name FILTER html %]_flags_edit_action">edit</a>)
+        </span>
+      [% END %]
+      <div id="[% flag_type.name FILTER html %]_flags_edit_input">
+        <table class="tracking_flags">
         [% FOREACH flag = flag_list %]
           <tr id="row_[% flag.name FILTER html %]">
             <td>&nbsp;</td>
@@ -38,17 +40,16 @@
               <label for="[% flag.name FILTER html %]">[% flag.description FILTER html %]:</label>
             </td>
             <td>
-              <select id="[% flag.name FILTER html %]" 
+              <select id="[% flag.name FILTER html %]"
                       name="[% flag.name FILTER html %]">
                 [% FOREACH value = flag.values %]
                   [% IF value.value != flag.set_value.value %]
-                    [% NEXT IF !flag.can_set_value(value.value,flag.set_value.value) %]
+                    [% NEXT IF !flag.can_set_value(value.value, flag.bug_flag.value) %]
                     [% NEXT IF !value.is_active %]
                   [% END %]
                   <option value="[% value.value FILTER html %]"
                           id="v[% loop.count %]_[% flag.name FILTER html %]"
-                          [% IF flag.bug_flag.value == value.value %] selected="selected"[% END %]
-                          [% IF !flag.can_set_value(value.value,flag.bug_flag.value) %]disabled="disabled"[% END %]>
+                          [% 'selected' IF flag.bug_flag.value == value.value %]>
                           [% value.value FILTER html %]</option>
                 [% END %]
               </select>
@@ -57,13 +58,15 @@
         [% END %]
         </table>
       </div>
-      <script type="text/javascript">
-        hideEditableField('[% flag_type FILTER js %]_flags_edit_container',  
-                          '[% flag_type FILTER js %]_flags_edit_input',  
-                          '[% flag_type FILTER js %]_flags_edit_action',  
-                          '',  
-                          '');  
-      </script>
+      [% IF flag_type.collapsed %]
+        <script type="text/javascript">
+          hideEditableField('[% flag_type.name FILTER js %]_flags_edit_container',
+                            '[% flag_type.name FILTER js %]_flags_edit_input',
+                            '[% flag_type.name FILTER js %]_flags_edit_action',
+                            '',
+                            '');
+        </script>
+      [% END %]
     </td>
   </tr>
 [% END %]

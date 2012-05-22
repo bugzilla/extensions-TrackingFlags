@@ -201,7 +201,7 @@ sub _check_description {
 sub _check_type {
     my ($invocant, $type) = @_;
     $type || ThrowCodeError( 'param_required', { param => 'type' } );
-    grep($_->{name} eq $type, FLAG_TYPES) 
+    grep($_->{name} eq $type, @{FLAG_TYPES()})
         || ThrowUserError('tracking_flags_invalid_flag_type', { type => $type });
     return $type;
 }
@@ -251,27 +251,32 @@ sub visibility {
 
 sub can_set_value {
     my ($self, $new_value, $old_value, $user) = @_;
+    return 1 if $new_value eq $old_value;
     $user ||= Bugzilla->user;
-    my ($new_value_obj, $old_value_obj); 
+    my ($new_value_obj, $old_value_obj);
     foreach my $value (@{$self->values}) {
         $new_value_obj = $value if $value->value eq $new_value;
         $old_value_obj = $value if $value->value eq $old_value;
     }
     if ($new_value_obj && $old_value_obj) {
+        # XXX should re-write this condition to be easier to understand
+        # i'm not sure we need this
         return (!$user->in_group($old_value_obj->setter_group->name)
                 || !$user->in_group($new_value_obj->setter_group->name)) ? 0 : 1;
     }
-    return $user->in_group($new_value_obj->setter_group->name) ? 1 : 0;
+    return $user->in_group($new_value_obj->setter_group->name);
 }
 
 sub bug_flag {
     my ($self, $bug_id) = @_;
     $bug_id ||= $self->{'bug_id'};
     $self->{'bug_id'} = $bug_id;
-    $self->{'bug_flag'} 
+    $self->{'bug_flag'}
         ||= Bugzilla::Extension::TrackingFlags::Flag::Bug->new(
-            { condition => "tracking_flag_id = ? AND bug_id = ?", 
+            { condition => "tracking_flag_id = ? AND bug_id = ?",
               values    => [ $self->id, $bug_id ] });
+    # XXX this should probably return a Flag::Bug object, not a hash
+    $self->{'bug_flag'} ||= { bug_id => $bug_id, value => '---', };
     return $self->{'bug_flag'};
 }
 
