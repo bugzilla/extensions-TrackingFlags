@@ -257,11 +257,10 @@ sub install_update_db {
 
             my $new_flag_name = $field->name . "_new"; # Temporary name til we delete the old
 
-            my $type = "blocking";
-            $type = 'status' if $field->name =~ /^cf_status_/;
-            if (grep($field->name =~ $_, @bmo_project_flags)) {
-                $type = 'project';
-            }
+            my $type =
+                grep($field->name =~ $_, @bmo_project_flags)
+                    ? 'tracking'
+                    : 'project';
 
             $dbh->bz_start_transaction();
 
