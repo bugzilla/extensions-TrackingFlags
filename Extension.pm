@@ -240,62 +240,64 @@ sub install_update_db {
     my @bmo_project_flags
         = @{$Bugzilla::Extension::BMO::Data::cf_project_flags};
 
-    $dbh->bz_start_transaction();
-
     my $fields = Bugzilla::Field->match({ custom => 1, 
                                           type   => FIELD_TYPE_SINGLE_SELECT });
     LAST: foreach my $field (@$fields) {
         next if $field->name !~ /^cf_(blocking|tracking|status)_/;
         foreach my $field_re (keys %bmo_tracking_flags) {
-            if ($field->name =~ $field_re) {
-                # Create the new tracking flag if not exists
-                my $new_flag 
+            next if $field->name !~ $field_re;
+
+            # Create the new tracking flag if not exists
+            my $new_flag 
                     = Bugzilla::Extension::TrackingFlags::Flag->new({ name => $field->name });
-                if (!$new_flag) {
-                    print "Migrating custom tracking field " . $field->name . "\n";
 
-                    my $new_flag_name = $field->name . "_new"; # Temporary name til we delete the old
+            next if $new_flag;
+                    
+            print "Migrating custom tracking field " . $field->name . "\n";
 
-                    my $type = 
-                        grep($field->name =~ $_, @bmo_project_flags)
-                        ? 'tracking'
-                        : 'project';
+            my $new_flag_name = $field->name . "_new"; # Temporary name til we delete the old
 
-                    $new_flag = Bugzilla::Extension::TrackingFlags::Flag->create({
-                        name        => $new_flag_name,
-                        description => $field->description,
-                        type        => $type, 
-                        sortkey     => $field->sortkey, 
-                    });
-
-                    _migrate_flag_visibility($new_flag, $field_re, %bmo_tracking_flags);
-
-                    _migrate_flag_values($new_flag, $field);
-
-                    _migrate_flag_bugs($new_flag, $field);
-
-                    _migrate_flag_activity($new_flag, $field);
-
-                    # Set all old custom field values to '---'
-                    $dbh->do("UPDATE bugs SET " . $field->name . " = '---'");
-
-                    # Remove the old custom field
-                    $field->set_obsolete(1);
-                    $field->remove_from_db();
-
-                    # Rename the new flag
-                    $dbh->do("UPDATE fielddefs SET name = ? WHERE name = ?",
-                             undef, $field->name, $new_flag_name);
-                    $new_flag->set_name($field->name);
-                    $new_flag->update;
-
-                    # last LAST; # XXX comment this if you want to do more than one
-                }
+            my $type = "blocking";
+            $type = 'status' if $field->name =~ /^cf_status_/;
+            if (grep($field->name =~ $_, @bmo_project_flags)) {
+                $type = 'project';
             }
+
+            $dbh->bz_start_transaction();
+
+            $new_flag = Bugzilla::Extension::TrackingFlags::Flag->create({
+                name        => $new_flag_name,
+                description => $field->description,
+                type        => $type, 
+                sortkey     => $field->sortkey, 
+            });
+
+            _migrate_flag_visibility($new_flag, $field_re, %bmo_tracking_flags);
+
+            _migrate_flag_values($new_flag, $field);
+
+            _migrate_flag_bugs($new_flag, $field);
+
+            _migrate_flag_activity($new_flag, $field);
+
+            # Set all old custom field values to '---'
+            $dbh->do("UPDATE bugs SET " . $field->name . " = '---'");
+    
+            # Remove the old custom field
+            $field->set_obsolete(1);
+            $field->remove_from_db();
+                 
+            # Rename the new flag
+            $dbh->do("UPDATE fielddefs SET name = ? WHERE name = ?",
+                     undef, $field->name, $new_flag_name);
+            $new_flag->set_name($field->name);
+            $new_flag->update;
+
+            $dbh->bz_commit_transaction();
+
+            last LAST; # XXX comment this if you want to do more than one
         }
     }
-
-    $dbh->bz_commit_transaction();
 }
 
 sub _migrate_flag_visibility {
@@ -348,37 +350,32 @@ sub _migrate_flag_values {
     my %status_trusted_setters 
         = %{$Bugzilla::Extension::BMO::Data::status_trusted_setters};
 
-    my $default_group = Bugzilla::Group->new({ name => 'editbugs' });
-
+    my %group_cache;
     foreach my $value (@{ $field->legal_values }) {
-        my $group_name;
+        my $group_name = 'everyone';
 
         if ($field->name =~ /^cf_(blocking|tracking)_/) {
-            if ($value ne '---' && $value ne '?') {
-                $group_name = _get_setter_group($field, \%blocking_trusted_setters);
+            if ($value->name ne '---' && $value->name ne '?') {
+                $group_name = _get_setter_group($field->name, \%blocking_trusted_setters);
             }
-            if ($value eq '?') {
-                $group_name = _get_setter_group($field, \%blocking_trusted_requesters);
+            if ($value->name eq '?') {
+                $group_name = _get_setter_group($field->name, \%blocking_trusted_requesters);
             }
-
         } elsif ($field->name =~ /^cf_status_/) {
-            if ($value eq 'wanted') {
-                $group_name = _get_setter_group($field, \%status_trusted_wanters);
-            } elsif ($value ne '---' && $value ne '?') {
-                $group_name = _get_setter_group($field, \%status_trusted_setters);
+            if ($value->name eq 'wanted') {
+                $group_name = _get_setter_group($field->name, \%status_trusted_wanters);
+            } elsif ($value->name ne '---' && $value->name ne '?') {
+                $group_name = _get_setter_group($field->name, \%status_trusted_setters);
             }
         }
-    
-        my $group = $default_group;
-        if ($group_name) {
-            $group = Bugzilla::Group->new({ name => $group_name });
-            $group || die "Setter group '$group_name' does not exist";
-        }
+   
+        $group_cache{$group_name} ||= Bugzilla::Group->new({ name => $group_name });
+        $group_cache{$group_name} || die "Setter group '$group_name' does not exist";
 
         Bugzilla::Extension::TrackingFlags::Flag::Value->create({
             tracking_flag_id => $new_flag->id, 
             value            => $value->name,
-            setter_group_id  => $group->id,  
+            setter_group_id  => $group_cache{$group_name}->id,  
         });
     }
 }
